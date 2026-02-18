@@ -1,18 +1,32 @@
-//
-//  ClientModels.swift
-//  rebu
-//
-//  Created by silver on 2/13/26.
-//
+import Foundation
 
-import SwiftUI
 
-struct ClientModels: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+
+struct Restaurant: Identifiable {
+
+    let id: UUID
+
+    let name: String
+
+    let products: [Product]
+
+}
+
+
+
+struct Product: Identifiable {
+
+    let id: UUID
+
+    let name: String
+
+    let price: Double
+    struct OrderItem: Identifiable {
+        let id = UUID()
+        let name: String
+        let quantity: Int
+        let price: Double
     }
 }
 
-#Preview {
-    ClientModels()
-}
+

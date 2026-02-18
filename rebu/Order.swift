@@ -1,18 +1,39 @@
-//
-//  Order.swift
-//  rebu
-//
-//  Created by silver on 2/12/26.
-//
+import Foundation
 
-import SwiftUI
 
-struct Order: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
-    }
+
+enum OrderStatus: String {
+
+    case new = "NEW"
+
+    case accepted = "ACCEPTED"
+
+    case ready = "READY"
+    
+    case pickedUp = "PICKED_UP"
+
+    case delivered = "DELIVERED"
+
 }
 
-#Preview {
-    Order()
+struct OrderItem:Identifiable {
+    let id = UUID()
+    let name: String
+    let quantity: Int
+    let price: Double
+}
+struct Order: Identifiable {
+   
+    let id: UUID
+    let items: [OrderItem]
+    let total: Double
+    
+    let restaurantName: String
+
+    let restaurantAddress: String
+
+    let customerAddress: String
+    let customerPhone: String
+    var status: OrderStatus
+    var driverId: UUID?
 }

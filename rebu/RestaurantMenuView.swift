@@ -1,18 +1,31 @@
-//
-//  RestaurantMenuView.swift
-//  rebu
-//
-//  Created by silver on 2/12/26.
-//
-
 import SwiftUI
 
+
+
 struct RestaurantMenuView: View {
+
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+
+        VStack(alignment: .leading, spacing: 12) {
+
+            Text("Menu")
+
+                .font(.largeTitle)
+
+                .bold()
+
+
+
+            Text("This screen is disabled for now.")
+
+                .foregroundColor(.gray)
+
+        }
+
+        .padding()
+
     }
+
 }
 
-#Preview {
-    RestaurantMenuView()
-}
+

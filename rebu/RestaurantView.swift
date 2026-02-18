@@ -1,18 +1,97 @@
-//
-//  RestaurantView.swift
-//  rebu
-//
-//  Created by silver on 2/12/26.
-//
-
 import SwiftUI
 
+
+
 struct RestaurantView: View {
+
+    @EnvironmentObject var orderStore: OrderStore
+
+
+
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+
+        NavigationView {
+
+            List {
+
+                ForEach(orderStore.orders.filter {
+
+                    $0.status == .new || $0.status == .accepted
+
+                }) { order in
+
+                    VStack(alignment: .leading, spacing: 8) {
+
+
+
+                        Text("Order #\(order.id.uuidString.prefix(8))")
+
+                            .font(.headline)
+
+
+
+                        Text("Total: $\(String(format: "%.2f", order.total))")
+
+                            .bold()
+
+
+
+                        Text("Status: \(order.status.rawValue.uppercased())")
+
+
+
+                        if order.status == .new {
+
+                            Button("Accept Order") {
+
+                                orderStore.updateStatus(
+
+                                    for: order.id,
+
+                                    to: .accepted
+
+                                )
+
+                            }
+
+                            .buttonStyle(.borderedProminent)
+
+                        }
+
+
+
+                        if order.status == .accepted {
+
+                            Button("Mark as READY") {
+
+                                orderStore.updateStatus(
+
+                                    for: order.id,
+
+                                    to: .ready
+
+                                )
+
+                            }
+
+                            .buttonStyle(.borderedProminent)
+
+                        }
+
+                    }
+
+                    .padding(.vertical, 8)
+
+                }
+
+            }
+
+            .navigationTitle("Restaurant")
+
+        }
+
     }
+
 }
 
-#Preview {
-    RestaurantView()
-}
+
