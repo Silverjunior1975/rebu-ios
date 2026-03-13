@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		79D30DBF2F3E363300CCF5EE /* Stripe in Frameworks */ = {isa = PBXBuildFile; productRef = 79D30DBE2F3E363300CCF5EE /* Stripe */; };
 		79D30DC12F3E363300CCF5EE /* StripeApplePay in Frameworks */ = {isa = PBXBuildFile; productRef = 79D30DC02F3E363300CCF5EE /* StripeApplePay */; };
+		79D30DC42F3E400000CCF5EE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 79D30DC32F3E400000CCF5EE /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 			files = (
 				79D30DBF2F3E363300CCF5EE /* Stripe in Frameworks */,
 				79D30DC12F3E363300CCF5EE /* StripeApplePay in Frameworks */,
+				79D30DC42F3E400000CCF5EE /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +76,7 @@
 			packageProductDependencies = (
 				79D30DBE2F3E363300CCF5EE /* Stripe */,
 				79D30DC02F3E363300CCF5EE /* StripeApplePay */,
+				79D30DC32F3E400000CCF5EE /* Supabase */,
 			);
 			productName = rebu;
 			productReference = 79F8B3262EFB1AD900A40388 /* rebu.app */;
@@ -105,6 +108,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				79D30DBD2F3E363300CCF5EE /* XCRemoteSwiftPackageReference "stripe-ios" */,
+				79D30DC22F3E400000CCF5EE /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 79F8B3272EFB1AD900A40388 /* Products */;
@@ -373,6 +377,14 @@
 				minimumVersion = 25.6.2;
 			};
 		};
+		79D30DC22F3E400000CCF5EE /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -385,6 +397,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 79D30DBD2F3E363300CCF5EE /* XCRemoteSwiftPackageReference "stripe-ios" */;
 			productName = StripeApplePay;
+		};
+		79D30DC32F3E400000CCF5EE /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 79D30DC22F3E400000CCF5EE /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

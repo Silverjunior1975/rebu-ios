@@ -43,15 +43,12 @@ struct RestaurantView: View {
                         if order.status == .new {
 
                             Button("Accept Order") {
-
-                                orderStore.updateStatus(
-
-                                    for: order.id,
-
-                                    to: .accepted
-
-                                )
-
+                                Task {
+                                    await orderStore.updateStatus(
+                                        for: order.id,
+                                        to: .accepted
+                                    )
+                                }
                             }
 
                             .buttonStyle(.borderedProminent)
@@ -63,15 +60,12 @@ struct RestaurantView: View {
                         if order.status == .accepted {
 
                             Button("Mark as READY") {
-
-                                orderStore.updateStatus(
-
-                                    for: order.id,
-
-                                    to: .ready
-
-                                )
-
+                                Task {
+                                    await orderStore.updateStatus(
+                                        for: order.id,
+                                        to: .ready
+                                    )
+                                }
                             }
 
                             .buttonStyle(.borderedProminent)
@@ -89,9 +83,10 @@ struct RestaurantView: View {
             .navigationTitle("Restaurant")
 
         }
+        .task {
+            await orderStore.fetchOrders()
+        }
 
     }
 
 }
-
-

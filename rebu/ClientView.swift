@@ -28,33 +28,19 @@ struct ClientView: View {
 
     private let deliveryFee: Double = 4.00
 
+    @State private var restaurants: [Restaurant] = []
 
-
-    private let restaurants: [Restaurant] = [
-
-        Restaurant(
-
-            id: UUID(),
-
-            name: "Burger House",
-
-            products: [
-
-                Product(id: UUID(), name: "Cheeseburger", price: 10.00),
-
-                Product(id: UUID(), name: "Fries", price: 4.50)
-
-            ]
-
-        )
-
+    // Default menu items (until a products table is added to Supabase)
+    private let defaultProducts: [Product] = [
+        Product(id: UUID(), name: "Cheeseburger", price: 10.00),
+        Product(id: UUID(), name: "Fries", price: 4.50)
     ]
-
-
 
     @State private var selectedRestaurant: Restaurant?
 
     @State private var cart: [Product] = []
+
+    @State private var isPlacingOrder: Bool = false
 
 
 
@@ -289,16 +275,17 @@ struct ClientView: View {
 
 
                             Button("Place Order") {
-
-                                placeOrder(restaurant: restaurant)
-
+                                Task {
+                                    await placeOrder(restaurant: restaurant)
+                                }
                             }
+                            .disabled(isPlacingOrder)
 
                             .padding()
 
                             .frame(maxWidth: .infinity)
 
-                            .background(Color.blue)
+                            .background(isPlacingOrder ? Color.gray : Color.blue)
 
                             .foregroundColor(.white)
 
@@ -334,6 +321,9 @@ struct ClientView: View {
 
             .padding()
 
+        }
+        .task {
+            await fetchRestaurants()
         }
 
     }
@@ -412,51 +402,51 @@ struct ClientView: View {
 
     }
 
+    // MARK: - Fetch Restaurants from Supabase
 
+    private func fetchRestaurants() async {
+        do {
+            let rows: [RestaurantRow] = try await supabaseClient
+                .from("restaurants")
+                .select()
+                .execute()
+                .value
 
-    private func placeOrder(restaurant: Restaurant) {
-
-        let order = Order(
-
-            id: UUID(),
-
-            items: cart.map {
-
-                OrderItem(
-
-                    name: $0.name,
-
-                    quantity: 1,
-
-                    price: $0.price
-
+            restaurants = rows.map { row in
+                Restaurant(
+                    id: row.id,
+                    name: row.name,
+                    address: row.address ?? "N/A",
+                    products: defaultProducts
                 )
+            }
+        } catch {
+            print("Error fetching restaurants: \(error)")
+        }
+    }
 
-            },
+    // MARK: - Place Order via Supabase
 
-            total: cart.reduce(0) { $0 + $1.price },
+    private func placeOrder(restaurant: Restaurant) async {
+        isPlacingOrder = true
 
+        let success = await orderStore.placeOrder(
+            restaurantId: restaurant.id,
             restaurantName: restaurant.name,
-
-            restaurantAddress: "N/A",
-
-            customerAddress: "\(firstName) \(lastName), \(phoneNumber), \(deliveryAddress)",
+            restaurantAddress: restaurant.address,
+            customerName: "\(firstName) \(lastName)",
+            customerAddress: deliveryAddress,
             customerPhone: phoneNumber,
-            status: .new,
-            driverId: nil
+            items: cart,
+            deliveryFee: deliveryFee
         )
 
+        isPlacingOrder = false
 
-
-
-        orderStore.orders.append(order)
-
-        cart = []
-
-        selectedRestaurant = nil
-
+        if success {
+            cart = []
+            selectedRestaurant = nil
+        }
     }
 
 }
-
-
