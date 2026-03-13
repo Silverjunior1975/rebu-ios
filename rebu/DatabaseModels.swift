@@ -1,0 +1,116 @@
+import Foundation
+
+// MARK: - Restaurant (read from "restaurants" table)
+
+struct RestaurantRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let name: String
+    let address: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, address
+    }
+}
+
+// MARK: - Order (insert into "orders" table)
+
+struct OrderInsert: Codable, Sendable {
+    let restaurantId: UUID
+    let restaurantName: String
+    let restaurantAddress: String
+    let customerName: String
+    let customerAddress: String
+    let customerPhone: String
+    let total: Double
+    let deliveryFee: Double
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case restaurantId = "restaurant_id"
+        case restaurantName = "restaurant_name"
+        case restaurantAddress = "restaurant_address"
+        case customerName = "customer_name"
+        case customerAddress = "customer_address"
+        case customerPhone = "customer_phone"
+        case total
+        case deliveryFee = "delivery_fee"
+        case status
+    }
+}
+
+// MARK: - Order (read from "orders" table, with nested order_items)
+
+struct OrderRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let restaurantId: UUID?
+    let restaurantName: String
+    let restaurantAddress: String
+    let customerName: String?
+    let customerAddress: String
+    let customerPhone: String
+    let total: Double
+    let deliveryFee: Double?
+    let status: String
+    let driverId: UUID?
+    let orderItems: [OrderItemRow]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case restaurantId = "restaurant_id"
+        case restaurantName = "restaurant_name"
+        case restaurantAddress = "restaurant_address"
+        case customerName = "customer_name"
+        case customerAddress = "customer_address"
+        case customerPhone = "customer_phone"
+        case total
+        case deliveryFee = "delivery_fee"
+        case status
+        case driverId = "driver_id"
+        case orderItems = "order_items"
+    }
+}
+
+// MARK: - Order Item (insert into "order_items" table)
+
+struct OrderItemInsert: Codable, Sendable {
+    let orderId: UUID
+    let name: String
+    let quantity: Int
+    let price: Double
+
+    enum CodingKeys: String, CodingKey {
+        case orderId = "order_id"
+        case name, quantity, price
+    }
+}
+
+// MARK: - Order Item (read from "order_items" table)
+
+struct OrderItemRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let name: String
+    let quantity: Int
+    let price: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, quantity, price
+    }
+}
+
+// MARK: - Status Update (for PATCH to "orders" table)
+
+struct StatusUpdate: Codable, Sendable {
+    let status: String
+}
+
+// MARK: - Driver Accept Update (for PATCH to "orders" table)
+
+struct DriverAcceptUpdate: Codable, Sendable {
+    let driverId: UUID
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case driverId = "driver_id"
+        case status
+    }
+}

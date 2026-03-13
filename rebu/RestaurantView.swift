@@ -30,6 +30,24 @@ struct RestaurantView: View {
 
 
 
+                        ForEach(order.items) { item in
+
+                            HStack {
+
+                                Text("\(item.quantity)x \(item.name)")
+
+                                Spacer()
+
+                                Text(String(format: "$%.2f", item.price))
+
+                                    .foregroundColor(.gray)
+
+                            }
+
+                        }
+
+
+
                         Text("Total: $\(String(format: "%.2f", order.total))")
 
                             .bold()
@@ -43,15 +61,12 @@ struct RestaurantView: View {
                         if order.status == .new {
 
                             Button("Accept Order") {
-
-                                orderStore.updateStatus(
-
-                                    for: order.id,
-
-                                    to: .accepted
-
-                                )
-
+                                Task {
+                                    await orderStore.updateStatus(
+                                        for: order.id,
+                                        to: .accepted
+                                    )
+                                }
                             }
 
                             .buttonStyle(.borderedProminent)
@@ -63,15 +78,12 @@ struct RestaurantView: View {
                         if order.status == .accepted {
 
                             Button("Mark as READY") {
-
-                                orderStore.updateStatus(
-
-                                    for: order.id,
-
-                                    to: .ready
-
-                                )
-
+                                Task {
+                                    await orderStore.updateStatus(
+                                        for: order.id,
+                                        to: .ready
+                                    )
+                                }
                             }
 
                             .buttonStyle(.borderedProminent)
@@ -88,6 +100,9 @@ struct RestaurantView: View {
 
             .navigationTitle("Restaurant")
 
+        }
+        .task {
+            await orderStore.fetchOrders()
         }
 
     }

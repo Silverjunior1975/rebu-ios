@@ -20,7 +20,7 @@ struct DriverView: View {
 
         orderStore.orders.first {
 
-            $0.status == .accepted || $0.status == .pickedUp
+            $0.status == .acceptedByDriver || $0.status == .pickedUp
 
         }
 
@@ -31,7 +31,6 @@ struct DriverView: View {
 
 
         
-
 
         VStack(spacing: 20) {
 
@@ -67,26 +66,21 @@ struct DriverView: View {
 
                 
 
-
-
                 Text("Status: \(order.status.rawValue)")
 
 
 
                 // ---- PICKED UP ----
 
-                if order.status == .accepted {
+                if order.status == .acceptedByDriver {
 
                     Button("Picked Up") {
-
-                        orderStore.updateStatus(
-
-                            for: order.id,
-
-                            to: .pickedUp
-
-                        )
-
+                        Task {
+                            await orderStore.updateStatus(
+                                for: order.id,
+                                to: .pickedUp
+                            )
+                        }
                     }
 
                     .buttonStyle(.borderedProminent)
@@ -114,15 +108,12 @@ struct DriverView: View {
 
 
                     Button("Delivered") {
-
-                        orderStore.updateStatus(
-
-                            for: order.id,
-
-                            to: .delivered
-
-                        )
-
+                        Task {
+                            await orderStore.updateStatus(
+                                for: order.id,
+                                to: .delivered
+                            )
+                        }
                     }
 
                     .buttonStyle(.borderedProminent)
@@ -169,7 +160,7 @@ struct DriverView: View {
 
 
 
-                    let order = readyOrders[0]   // 🔒 SIMPLU, fără ForEach
+                    let order = readyOrders[0]
 
 
 
@@ -177,22 +168,17 @@ struct DriverView: View {
 
                         .font(.headline)
 
+                    Text("Payout: $\(String(format: "%.2f", order.total))")
 
-
-            
-
-
+                        .foregroundColor(.gray)
 
                     Button("Accept Order") {
-
-                        orderStore.updateStatus(
-
-                            for: order.id,
-
-                            to: .accepted
-
-                        )
-
+                        Task {
+                            await orderStore.updateStatus(
+                                for: order.id,
+                                to: .acceptedByDriver
+                            )
+                        }
                     }
 
                     .buttonStyle(.borderedProminent)
@@ -204,6 +190,9 @@ struct DriverView: View {
         }
 
         .padding()
+        .task {
+            await orderStore.fetchOrders()
+        }
 
     }
 
