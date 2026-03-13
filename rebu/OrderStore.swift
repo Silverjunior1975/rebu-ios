@@ -18,7 +18,7 @@ class OrderStore: ObservableObject {
             .reduce(0) { $0 + $1.total }
     }
 
-    // MARK: - Fetch Orders from Supabase
+    // MARK: - Fetch all orders from Supabase
 
     func fetchOrders() async {
         do {
@@ -136,7 +136,7 @@ class OrderStore: ObservableObject {
                 .from("orders")
                 .update(DriverAcceptUpdate(
                     driverId: driverID,
-                    status: OrderStatus.accepted.rawValue
+                    status: OrderStatus.acceptedByDriver.rawValue
                 ))
                 .eq("id", value: orderID)
                 .execute()
@@ -174,3 +174,5 @@ class OrderStore: ObservableObject {
         }
     }
 }
+
+

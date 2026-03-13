@@ -20,7 +20,7 @@ struct DriverView: View {
 
         orderStore.orders.first {
 
-            $0.status == .accepted || $0.status == .pickedUp
+            $0.status == .acceptedByDriver || $0.status == .pickedUp
 
         }
 
@@ -72,7 +72,7 @@ struct DriverView: View {
 
                 // ---- PICKED UP ----
 
-                if order.status == .accepted {
+                if order.status == .acceptedByDriver {
 
                     Button("Picked Up") {
                         Task {
@@ -168,15 +168,15 @@ struct DriverView: View {
 
                         .font(.headline)
 
+                    Text("Payout: $\(String(format: "%.2f", order.total))")
 
-
-            
+                        .foregroundColor(.gray)
 
                     Button("Accept Order") {
                         Task {
                             await orderStore.updateStatus(
                                 for: order.id,
-                                to: .accepted
+                                to: .acceptedByDriver
                             )
                         }
                     }
@@ -197,3 +197,5 @@ struct DriverView: View {
     }
 
 }
+
+
