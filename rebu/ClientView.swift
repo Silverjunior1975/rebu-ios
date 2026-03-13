@@ -42,6 +42,8 @@ struct ClientView: View {
 
     @State private var isPlacingOrder: Bool = false
 
+    @State private var showOrderConfirmation: Bool = false
+
 
 
     var body: some View {
@@ -325,6 +327,11 @@ struct ClientView: View {
         .task {
             await fetchRestaurants()
         }
+        .alert("Order placed", isPresented: $showOrderConfirmation) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("The restaurant is preparing your order.")
+        }
 
     }
 
@@ -446,7 +453,10 @@ struct ClientView: View {
         if success {
             cart = []
             selectedRestaurant = nil
+            showOrderConfirmation = true
         }
     }
 
 }
+
+
