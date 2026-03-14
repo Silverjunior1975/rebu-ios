@@ -1,31 +1,250 @@
 import SwiftUI
 
-
-
 struct RestaurantMenuView: View {
 
-    var body: some View {
+    @EnvironmentObject var orderStore: OrderStore
 
-        VStack(alignment: .leading, spacing: 12) {
+    let restaurantId: UUID
+    let restaurantName: String
+    let restaurantAddress: String
+    let customerName: String
+    let customerAddress: String
+    let customerPhone: String
+    let distanceMiles: Double
 
-            Text("Menu")
+    @State private var menuItems: [Product] = []
+    @State private var cart: [Product] = []
+    @State private var isPlacingOrder: Bool = false
+    @State private var showOrderConfirmation: Bool = false
+    @State private var isLoading: Bool = true
 
-                .font(.largeTitle)
+    @Environment(\.dismiss) private var dismiss
 
-                .bold()
-
-
-
-            Text("This screen is disabled for now.")
-
-                .foregroundColor(.gray)
-
-        }
-
-        .padding()
-
+    private var itemsTotal: Double {
+        cart.reduce(0) { $0 + $1.price }
     }
 
+    private var deliveryFee: Double {
+        DeliveryPricing.deliveryFee(distanceMiles: distanceMiles)
+    }
+
+    private var finalTotal: Double {
+        itemsTotal + deliveryFee
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+
+                // Restaurant header
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(restaurantName)
+                        .font(.title2)
+                        .bold()
+
+                    Text(restaurantAddress)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+
+                    Text(String(format: "%.1f miles away", distanceMiles))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                // Menu items
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView("Loading menu...")
+                        Spacer()
+                    }
+                    .padding(.vertical, 40)
+                } else if menuItems.isEmpty {
+                    HStack {
+                        Spacer()
+                        Text("No menu items available")
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+                    .padding(.vertical, 40)
+                } else {
+                    Text("Menu")
+                        .font(.headline)
+
+                    ForEach(menuItems) { product in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(product.name)
+                                    .font(.body)
+                                Text(String(format: "$%.2f", product.price))
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                cart.append(product)
+                            } label: {
+                                Text("Add")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .padding()
+                        .background(Color.gray.opacity(0.08))
+                        .cornerRadius(10)
+                    }
+                }
+
+                // Cart section
+                if !cart.isEmpty {
+                    Divider()
+
+                    Text("Your Order")
+                        .font(.headline)
+
+                    ForEach(Array(cartSummary.enumerated()), id: \.offset) { _, entry in
+                        HStack {
+                            Text("\(entry.quantity)x \(entry.name)")
+                            Spacer()
+                            Text(String(format: "$%.2f", entry.subtotal))
+                                .foregroundColor(.gray)
+                        }
+                    }
+
+                    Divider()
+
+                    // Client sees only the final total (delivery included internally)
+                    HStack {
+                        Text("Total")
+                            .fontWeight(.bold)
+                            .font(.title3)
+                        Spacer()
+                        Text(String(format: "$%.2f", finalTotal))
+                            .fontWeight(.bold)
+                            .font(.title3)
+                    }
+
+                    Button {
+                        Task {
+                            await placeOrder()
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if isPlacingOrder {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Place Order")
+                                    .fontWeight(.bold)
+                            }
+                            Spacer()
+                        }
+                        .padding()
+                        .background(isPlacingOrder ? Color.gray : Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(isPlacingOrder)
+
+                    Button("Clear Cart") {
+                        cart = []
+                    }
+                    .font(.footnote)
+                    .foregroundColor(.red)
+                    .padding(.top, 4)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Menu")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await fetchMenuItems()
+        }
+        .alert("Order Placed!", isPresented: $showOrderConfirmation) {
+            Button("OK", role: .cancel) {
+                dismiss()
+            }
+        } message: {
+            Text("The restaurant is preparing your order.")
+        }
+    }
+
+    // MARK: - Cart Summary
+
+    private struct CartEntry {
+        let name: String
+        let quantity: Int
+        let subtotal: Double
+    }
+
+    private var cartSummary: [CartEntry] {
+        var dict: [String: (quantity: Int, subtotal: Double)] = [:]
+        for item in cart {
+            if let existing = dict[item.name] {
+                dict[item.name] = (existing.quantity + 1, existing.subtotal + item.price)
+            } else {
+                dict[item.name] = (1, item.price)
+            }
+        }
+        return dict.map { CartEntry(name: $0.key, quantity: $0.value.quantity, subtotal: $0.value.subtotal) }
+            .sorted { $0.name < $1.name }
+    }
+
+    // MARK: - Fetch Menu Items from Supabase
+
+    private func fetchMenuItems() async {
+        do {
+            let rows: [MenuItemRow] = try await supabaseClient
+                .from("menu_items")
+                .select()
+                .eq("restaurant_id", value: restaurantId)
+                .execute()
+                .value
+
+            menuItems = rows.map { row in
+                Product(id: row.id, name: row.name, price: row.price)
+            }
+            isLoading = false
+        } catch {
+            print("Error fetching menu items: \(error)")
+            isLoading = false
+        }
+    }
+
+    // MARK: - Place Order
+
+    private func placeOrder() async {
+        isPlacingOrder = true
+
+        let success = await orderStore.placeOrder(
+            restaurantId: restaurantId,
+            restaurantName: restaurantName,
+            restaurantAddress: restaurantAddress,
+            customerName: customerName,
+            customerAddress: customerAddress,
+            customerPhone: customerPhone,
+            items: cart,
+            deliveryFee: deliveryFee
+        )
+
+        isPlacingOrder = false
+
+        if success {
+            cart = []
+            showOrderConfirmation = true
+        }
+    }
 }
 
 

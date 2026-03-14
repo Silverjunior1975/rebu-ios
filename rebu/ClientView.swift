@@ -1,412 +1,239 @@
 import SwiftUI
+import MapKit
+import CoreLocation
 
+// MARK: - Restaurant data with optional coordinates for map
 
+struct RestaurantData: Identifiable {
+    let id: UUID
+    let name: String
+    let address: String
+    let latitude: Double?
+    let longitude: Double?
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard let lat = latitude, let lng = longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: lat, longitude: lng)
+    }
+}
 
 struct ClientView: View {
 
-
-
     @ObservedObject var orderStore: OrderStore
 
-
-
     // ===== ACCOUNT (PERSISTENT) =====
-
     @State private var firstName: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
-
     @State private var lastName: String = UserDefaults.standard.string(forKey: "lastName") ?? ""
-
     @State private var phoneNumber: String = UserDefaults.standard.string(forKey: "phoneNumber") ?? ""
-
     @State private var deliveryAddress: String = UserDefaults.standard.string(forKey: "deliveryAddress") ?? ""
-
     @State private var isLoggedIn: Bool = UserDefaults.standard.bool(forKey: "isLoggedIn")
 
-
-
-    // ===== DATA =====
-
-    private let deliveryFee: Double = 4.00
-
-    @State private var restaurants: [Restaurant] = []
-
-    // Default menu items (until a products table is added to Supabase)
-    private let defaultProducts: [Product] = [
-        Product(id: UUID(), name: "Cheeseburger", price: 10.00),
-        Product(id: UUID(), name: "Fries", price: 4.50)
-    ]
-
-    @State private var selectedRestaurant: Restaurant?
-
-    @State private var cart: [Product] = []
-
-    @State private var isPlacingOrder: Bool = false
-
+    // ===== MAP & DATA =====
+    @State private var restaurants: [RestaurantData] = []
+    @State private var searchText: String = ""
+    @State private var cameraPosition: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
+            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+        )
+    )
     @State private var showOrderConfirmation: Bool = false
 
-
+    private var filteredRestaurants: [RestaurantData] {
+        if searchText.isEmpty { return restaurants }
+        return restaurants.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
 
-        ScrollView {
+        VStack(spacing: 0) {
 
-            VStack(spacing: 20) {
+            // ===== CREATE ACCOUNT =====
+            if !isLoggedIn {
+                ScrollView {
+                    VStack(spacing: 16) {
 
+                        Text("REBU")
+                            .font(.largeTitle)
+                            .bold()
 
-
-                Text("Client")
-
-                    .font(.largeTitle)
-
-                    .bold()
-
-
-
-                // ===== CREATE ACCOUNT =====
-
-                if !isLoggedIn {
-
-                    VStack(spacing: 12) {
-
-                        Text("Create account")
-
+                        Text("Create your account")
                             .font(.headline)
 
-
-
                         TextField("First name", text: $firstName)
-
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-
-
 
                         TextField("Last name", text: $lastName)
-
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-
-
 
                         TextField("Phone number", text: $phoneNumber)
-
                             .textFieldStyle(RoundedBorderTextFieldStyle())
-
                             .keyboardType(.phonePad)
 
-
-
                         TextField("Delivery address", text: $deliveryAddress)
-
                             .textFieldStyle(RoundedBorderTextFieldStyle())
 
-
-
-                        Button("Continue") {
-
+                        Button {
                             saveAccount()
-
+                        } label: {
+                            Text("Continue")
+                                .fontWeight(.bold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(accountFormValid ? Color.blue : Color.gray)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
                         }
-
-                        .disabled(
-
-                            firstName.isEmpty ||
-
-                            lastName.isEmpty ||
-
-                            phoneNumber.isEmpty ||
-
-                            deliveryAddress.isEmpty
-
-                        )
-
-                        .padding()
-
-                        .frame(maxWidth: .infinity)
-
-                        .background(
-
-                            (firstName.isEmpty ||
-
-                             lastName.isEmpty ||
-
-                             phoneNumber.isEmpty ||
-
-                             deliveryAddress.isEmpty)
-
-                            ? Color.gray : Color.blue
-
-                        )
-
-                        .foregroundColor(.white)
-
-                        .cornerRadius(8)
-
+                        .disabled(!accountFormValid)
                     }
+                    .padding()
+                }
+            }
 
+            // ===== MAP + RESTAURANTS (logged in) =====
+            else {
+                // Map with search overlay
+                ZStack(alignment: .top) {
+                    Map(position: $cameraPosition) {
+                        ForEach(filteredRestaurants) { restaurant in
+                            if let coord = restaurant.coordinate {
+                                Marker(restaurant.name, coordinate: coord)
+                                    .tint(.red)
+                            }
+                        }
+                    }
+                    .frame(height: 280)
+
+                    // Search bar overlay
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.gray)
+                        TextField("Search restaurants", text: $searchText)
+                    }
+                    .padding(10)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(10)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
 
-
-
-                // ===== RESTAURANTS =====
-
-                if isLoggedIn && selectedRestaurant == nil {
-
+                // Restaurant list
+                ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
 
                         Text("Restaurants")
-
                             .font(.headline)
+                            .padding(.top, 8)
 
-
-
-                        ForEach(restaurants) { restaurant in
-
-                            Button {
-
-                                selectedRestaurant = restaurant
-
-                                cart = []
-
-                            } label: {
-
-                                Text(restaurant.name)
-
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
+                        if filteredRestaurants.isEmpty {
+                            Text("No restaurants found")
+                                .foregroundColor(.gray)
+                                .padding(.vertical, 20)
+                        } else {
+                            ForEach(filteredRestaurants) { restaurant in
+                                NavigationLink {
+                                    RestaurantMenuView(
+                                        restaurantId: restaurant.id,
+                                        restaurantName: restaurant.name,
+                                        restaurantAddress: restaurant.address,
+                                        customerName: "\(firstName) \(lastName)",
+                                        customerAddress: deliveryAddress,
+                                        customerPhone: phoneNumber,
+                                        distanceMiles: estimatedDistance(for: restaurant)
+                                    )
+                                } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(restaurant.name)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.primary)
+                                            Text(restaurant.address)
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        let dist = estimatedDistance(for: restaurant)
+                                        if dist <= DeliveryPricing.maxServiceDistanceMiles {
+                                            Text(String(format: "%.1f mi", dist))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        } else {
+                                            Text("Too far")
+                                                .font(.caption)
+                                                .foregroundColor(.red)
+                                        }
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(.gray)
+                                            .font(.caption)
+                                    }
                                     .padding()
-
-                                    .background(Color.gray.opacity(0.1))
-
-                                    .cornerRadius(8)
-
+                                    .background(Color.gray.opacity(0.08))
+                                    .cornerRadius(10)
+                                }
+                                .disabled(
+                                    estimatedDistance(for: restaurant) > DeliveryPricing.maxServiceDistanceMiles
+                                )
                             }
-
                         }
-
-
-
-                        // OPTIONAL logout (pentru test)
 
                         Button("Reset account") {
-
                             resetAccount()
-
                         }
-
                         .font(.footnote)
-
                         .foregroundColor(.red)
-
-                        .padding(.top)
-
+                        .padding(.top, 8)
                     }
-
+                    .padding(.horizontal)
                 }
-
-
-
-                // ===== PRODUCTS + CART =====
-
-                if let restaurant = selectedRestaurant {
-
-                    VStack(alignment: .leading, spacing: 12) {
-
-
-
-                        Text(restaurant.name)
-
-                            .font(.headline)
-
-
-
-                        ForEach(restaurant.products) { product in
-
-                            HStack {
-
-                                VStack(alignment: .leading) {
-
-                                    Text(product.name)
-
-                                    Text(String(format: "$%.2f", product.price))
-
-                                        .foregroundColor(.gray)
-
-                                }
-
-
-
-                                Spacer()
-
-
-
-                                Button("Add") {
-
-                                    cart.append(product)
-
-                                }
-
-                            }
-
-                            .padding()
-
-                            .background(Color.gray.opacity(0.1))
-
-                            .cornerRadius(8)
-
-                        }
-
-
-
-                        if !cart.isEmpty {
-
-                            Divider()
-
-
-
-                            VStack(spacing: 6) {
-
-                                row("Items", itemsTotal)
-
-                                row("Delivery fee", deliveryFee)
-
-                                Divider()
-
-                                row("Total", finalTotal, bold: true)
-
-                            }
-
-
-
-                            Button("Place Order") {
-                                Task {
-                                    await placeOrder(restaurant: restaurant)
-                                }
-                            }
-                            .disabled(isPlacingOrder)
-
-                            .padding()
-
-                            .frame(maxWidth: .infinity)
-
-                            .background(isPlacingOrder ? Color.gray : Color.blue)
-
-                            .foregroundColor(.white)
-
-                            .cornerRadius(8)
-
-
-
-                            Text("Payments are currently unavailable.")
-
-                                .font(.footnote)
-
-                                .foregroundColor(.gray)
-
-                        }
-
-
-
-                        Button("Back to restaurants") {
-
-                            selectedRestaurant = nil
-
-                            cart = []
-
-                        }
-
-                        .padding(.top)
-
-                    }
-
-                }
-
             }
-
-            .padding()
-
         }
         .task {
             await fetchRestaurants()
         }
-        .alert("Order placed", isPresented: $showOrderConfirmation) {
+        .alert("Order placed!", isPresented: $showOrderConfirmation) {
             Button("OK", role: .cancel) { }
         } message: {
             Text("The restaurant is preparing your order.")
         }
-
     }
 
+    // MARK: - Helpers
 
+    private var accountFormValid: Bool {
+        !firstName.isEmpty && !lastName.isEmpty &&
+        !phoneNumber.isEmpty && !deliveryAddress.isEmpty
+    }
 
-    // ===== HELPERS =====
-
-    private func row(_ title: String, _ value: Double, bold: Bool = false) -> some View {
-
-        HStack {
-
-            Text(title)
-
-                .fontWeight(bold ? .bold : .regular)
-
-            Spacer()
-
-            Text(String(format: "$%.2f", value))
-
-                .fontWeight(bold ? .bold : .regular)
-
+    /// Estimate distance — uses coordinates if available, otherwise a default
+    private func estimatedDistance(for restaurant: RestaurantData) -> Double {
+        guard let coord = restaurant.coordinate else {
+            return 3.0 // default estimate when coordinates unavailable
         }
-
+        // Use a fixed reference point (Miami) or user location if available
+        let userLocation = CLLocation(latitude: 25.7617, longitude: -80.1918)
+        let restaurantLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+        return DeliveryPricing.distanceInMiles(from: userLocation, to: restaurantLocation)
     }
-
-
-
-    private var itemsTotal: Double {
-
-        cart.reduce(0) { $0 + $1.price }
-
-    }
-
-
-
-    private var finalTotal: Double {
-
-        itemsTotal + deliveryFee
-
-    }
-
-
 
     private func saveAccount() {
-
         UserDefaults.standard.set(firstName, forKey: "firstName")
-
         UserDefaults.standard.set(lastName, forKey: "lastName")
-
         UserDefaults.standard.set(phoneNumber, forKey: "phoneNumber")
-
         UserDefaults.standard.set(deliveryAddress, forKey: "deliveryAddress")
-
         UserDefaults.standard.set(true, forKey: "isLoggedIn")
-
         isLoggedIn = true
-
     }
 
-
-
     private func resetAccount() {
-
         UserDefaults.standard.removeObject(forKey: "firstName")
-
         UserDefaults.standard.removeObject(forKey: "lastName")
-
         UserDefaults.standard.removeObject(forKey: "phoneNumber")
-
         UserDefaults.standard.removeObject(forKey: "deliveryAddress")
-
         UserDefaults.standard.set(false, forKey: "isLoggedIn")
-
         isLoggedIn = false
-
     }
 
     // MARK: - Fetch Restaurants from Supabase
@@ -420,43 +247,32 @@ struct ClientView: View {
                 .value
 
             restaurants = rows.map { row in
-                Restaurant(
+                RestaurantData(
                     id: row.id,
                     name: row.name,
                     address: row.address ?? "N/A",
-                    products: defaultProducts
+                    latitude: row.latitude,
+                    longitude: row.longitude
                 )
+            }
+
+            // Center map on restaurants if coordinates available
+            let withCoords = restaurants.compactMap { $0.coordinate }
+            if let first = withCoords.first {
+                let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
+                let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
+                cameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng),
+                        span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                    )
+                )
+                _ = first // suppress unused warning
             }
         } catch {
             print("Error fetching restaurants: \(error)")
         }
     }
-
-    // MARK: - Place Order via Supabase
-
-    private func placeOrder(restaurant: Restaurant) async {
-        isPlacingOrder = true
-
-        let success = await orderStore.placeOrder(
-            restaurantId: restaurant.id,
-            restaurantName: restaurant.name,
-            restaurantAddress: restaurant.address,
-            customerName: "\(firstName) \(lastName)",
-            customerAddress: deliveryAddress,
-            customerPhone: phoneNumber,
-            items: cart,
-            deliveryFee: deliveryFee
-        )
-
-        isPlacingOrder = false
-
-        if success {
-            cart = []
-            selectedRestaurant = nil
-            showOrderConfirmation = true
-        }
-    }
-
 }
 
 

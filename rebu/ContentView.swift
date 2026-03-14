@@ -76,7 +76,7 @@ struct ContentView: View {
 
                 } else if appRole == .driver {
 
-                    DriverView()
+                    DriverDashboardView()
 
                 }
 
