@@ -31,6 +31,7 @@ struct ClientView: View {
     // ===== MAP & DATA =====
     @State private var restaurants: [RestaurantData] = []
     @State private var searchText: String = ""
+    @State private var activeClientOrder: Order? = nil
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
@@ -38,6 +39,8 @@ struct ClientView: View {
         )
     )
     @State private var showOrderConfirmation: Bool = false
+
+    private let orderRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private var filteredRestaurants: [RestaurantData] {
         if searchText.isEmpty { return restaurants }
@@ -89,6 +92,68 @@ struct ClientView: View {
                         .disabled(!accountFormValid)
                     }
                     .padding()
+                }
+            }
+
+            // ===== ACTIVE ORDER TRACKING =====
+            else if let order = activeClientOrder {
+                VStack(spacing: 16) {
+                    Spacer()
+
+                    Image(systemName: statusIcon(for: order.status))
+                        .font(.system(size: 56))
+                        .foregroundColor(statusColor(for: order.status))
+
+                    Text(statusTitle(for: order.status))
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    Text(statusMessage(for: order.status))
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Restaurant")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(order.restaurantName)
+                                .fontWeight(.medium)
+                        }
+                        HStack {
+                            Text("Status")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(order.status.rawValue.replacingOccurrences(of: "_", with: " ").uppercased())
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(statusColor(for: order.status).opacity(0.2))
+                                .cornerRadius(6)
+                        }
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.08))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+
+                    if order.status == .delivered {
+                        Button("Done") {
+                            activeClientOrder = nil
+                        }
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+
+                    Spacer()
                 }
             }
 
@@ -192,9 +257,17 @@ struct ClientView: View {
         }
         .task {
             await fetchRestaurants()
+            await fetchActiveOrder()
         }
-        .alert("Order placed!", isPresented: $showOrderConfirmation) {
-            Button("OK", role: .cancel) { }
+        .onReceive(orderRefreshTimer) { _ in
+            if isLoggedIn && activeClientOrder != nil {
+                Task { await fetchActiveOrder() }
+            }
+        }
+        .alert("Order Placed!", isPresented: $showOrderConfirmation) {
+            Button("OK", role: .cancel) {
+                Task { await fetchActiveOrder() }
+            }
         } message: {
             Text("The restaurant is preparing your order.")
         }
@@ -271,6 +344,104 @@ struct ClientView: View {
             }
         } catch {
             print("Error fetching restaurants: \(error)")
+        }
+    }
+
+    // MARK: - Fetch Active Order for This Client
+
+    private func fetchActiveOrder() async {
+        guard isLoggedIn, !phoneNumber.isEmpty else { return }
+
+        do {
+            let rows: [OrderRow] = try await supabaseClient
+                .from("orders")
+                .select("*, order_items(*)")
+                .eq("customer_phone", value: phoneNumber)
+                .in("status", values: [
+                    OrderStatus.new.rawValue,
+                    OrderStatus.accepted.rawValue,
+                    OrderStatus.ready.rawValue,
+                    OrderStatus.acceptedByDriver.rawValue,
+                    OrderStatus.pickedUp.rawValue,
+                    OrderStatus.delivered.rawValue
+                ])
+                .order("id", ascending: false)
+                .limit(1)
+                .execute()
+                .value
+
+            if let row = rows.first {
+                let order = Order(
+                    id: row.id,
+                    items: (row.orderItems ?? []).map { item in
+                        OrderItem(name: item.name, quantity: item.quantity, price: item.price)
+                    },
+                    total: row.total,
+                    restaurantName: row.restaurantName,
+                    restaurantAddress: row.restaurantAddress,
+                    customerAddress: row.customerAddress,
+                    customerPhone: row.customerPhone,
+                    status: OrderStatus(rawValue: row.status) ?? .new,
+                    driverId: row.driverId
+                )
+                // Only track non-delivered orders (or recently delivered)
+                if order.status != .delivered {
+                    activeClientOrder = order
+                } else if activeClientOrder?.id == order.id {
+                    // Order just got delivered — show delivered state
+                    activeClientOrder = order
+                }
+            } else {
+                activeClientOrder = nil
+            }
+        } catch {
+            print("Error fetching active order: \(error)")
+        }
+    }
+
+    // MARK: - Order Status Display Helpers
+
+    private func statusIcon(for status: OrderStatus) -> String {
+        switch status {
+        case .new: return "clock.fill"
+        case .accepted: return "checkmark.circle.fill"
+        case .ready: return "bag.fill"
+        case .acceptedByDriver: return "car.fill"
+        case .pickedUp: return "bicycle"
+        case .delivered: return "house.fill"
+        }
+    }
+
+    private func statusColor(for status: OrderStatus) -> Color {
+        switch status {
+        case .new: return .orange
+        case .accepted: return .green
+        case .ready: return .blue
+        case .acceptedByDriver: return .purple
+        case .pickedUp: return .indigo
+        case .delivered: return .green
+        }
+    }
+
+    private func statusTitle(for status: OrderStatus) -> String {
+        switch status {
+        case .new: return "Order Placed"
+        case .accepted: return "Restaurant Accepted"
+        case .ready: return "Order Ready"
+        case .acceptedByDriver: return "Driver On The Way"
+        case .pickedUp: return "Out for Delivery"
+        case .delivered: return "Delivered!"
+        }
+    }
+
+    private func statusMessage(for status: OrderStatus) -> String {
+        switch status {
+        case .new: return "Waiting for the restaurant to accept your order."
+        case .accepted: return "The restaurant accepted and is preparing your order."
+        case .ready: return "Your order is ready! Waiting for a driver."
+        case .acceptedByDriver: return "A driver is heading to the restaurant to pick up your order."
+        case .pickedUp: return "Your order is on its way to you!"
+        case .delivered: return "Your order has been delivered. Enjoy!"
         }
     }
 }

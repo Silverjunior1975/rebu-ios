@@ -18,6 +18,7 @@ struct RestaurantMenuView: View {
     @State private var showOrderConfirmation: Bool = false
     @State private var isLoading: Bool = true
     @State private var paymentError: String?
+    @State private var noDriversAvailable: Bool = false
     @StateObject private var paymentManager = PaymentManager()
 
     @Environment(\.dismiss) private var dismiss
@@ -135,6 +136,22 @@ struct RestaurantMenuView: View {
                             .font(.title3)
                     }
 
+                    if noDriversAvailable {
+                        Text("No drivers available right now")
+                            .font(.subheadline)
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(10)
+                    }
+
+                    if let error = paymentError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+
                     Button {
                         Task {
                             await placeOrder()
@@ -152,11 +169,11 @@ struct RestaurantMenuView: View {
                             Spacer()
                         }
                         .padding()
-                        .background(isPlacingOrder ? Color.gray : Color.blue)
+                        .background((isPlacingOrder || noDriversAvailable) ? Color.gray : Color.blue)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
-                    .disabled(isPlacingOrder)
+                    .disabled(isPlacingOrder || noDriversAvailable)
 
                     Button("Clear Cart") {
                         cart = []
@@ -172,6 +189,7 @@ struct RestaurantMenuView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await fetchMenuItems()
+            await checkDriverAvailability()
         }
         .alert("Order Placed!", isPresented: $showOrderConfirmation) {
             Button("OK", role: .cancel) {
@@ -224,11 +242,36 @@ struct RestaurantMenuView: View {
         }
     }
 
+    // MARK: - Check Driver Availability
+
+    private func checkDriverAvailability() async {
+        do {
+            let drivers: [DriverRow] = try await supabaseClient
+                .from("drivers")
+                .select()
+                .eq("is_online", value: true)
+                .execute()
+                .value
+            noDriversAvailable = drivers.isEmpty
+        } catch {
+            // If drivers table doesn't exist yet, allow order (graceful degradation)
+            print("Driver availability check skipped: \(error)")
+            noDriversAvailable = false
+        }
+    }
+
     // MARK: - Place Order (with Stripe payment)
 
     private func placeOrder() async {
         isPlacingOrder = true
         paymentError = nil
+
+        // Re-check driver availability right before placing
+        await checkDriverAvailability()
+        if noDriversAvailable {
+            isPlacingOrder = false
+            return
+        }
 
         // Step 1: Try to create PaymentIntent (authorize, not capture)
         var paymentIntentId: String?

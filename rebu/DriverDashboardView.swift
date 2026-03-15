@@ -91,6 +91,9 @@ struct DriverDashboardView: View {
 
                 Toggle("", isOn: $isOnline)
                     .labelsHidden()
+                    .onChange(of: isOnline) { _, newValue in
+                        Task { await setDriverOnline(newValue) }
+                    }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
@@ -239,6 +242,19 @@ struct DriverDashboardView: View {
                     Button("Close") { showCashOut = false }
                 }
             }
+        }
+    }
+
+    // MARK: - Driver Online/Offline in Supabase
+
+    private func setDriverOnline(_ online: Bool) async {
+        do {
+            try await supabaseClient
+                .from("drivers")
+                .upsert(DriverUpsert(id: driverId, isOnline: online))
+                .execute()
+        } catch {
+            print("Driver: Error updating online status: \(error)")
         }
     }
 

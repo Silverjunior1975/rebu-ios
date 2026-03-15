@@ -144,12 +144,26 @@ struct DriverRow: Codable, Identifiable, Sendable {
     let phone: String?
     let isApproved: Bool?
     let isBlocked: Bool?
+    let isOnline: Bool?
     let stripeAccountId: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, phone
         case isApproved = "is_approved"
         case isBlocked = "is_blocked"
+        case isOnline = "is_online"
         case stripeAccountId = "stripe_account_id"
+    }
+}
+
+// MARK: - Driver Upsert (for setting online/offline status)
+
+struct DriverUpsert: Codable, Sendable {
+    let id: UUID
+    let isOnline: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case isOnline = "is_online"
     }
 }
