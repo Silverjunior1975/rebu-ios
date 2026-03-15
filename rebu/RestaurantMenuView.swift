@@ -277,7 +277,7 @@ struct RestaurantMenuView: View {
                 .value
 
             menuItems = rows.map { row in
-                Product(id: row.id, name: row.name, price: row.price)
+                Product(id: UUID(), name: row.name, price: row.price)
             }
             isLoading = false
         } catch {

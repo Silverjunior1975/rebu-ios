@@ -22,7 +22,7 @@ struct RestaurantRow: Codable, Identifiable, Sendable {
 // MARK: - Menu Item (read from "menu_items" table)
 
 struct MenuItemRow: Codable, Identifiable, Sendable {
-    let id: UUID
+    let id: Int
     let restaurantId: Int
     let name: String
     let price: Double
