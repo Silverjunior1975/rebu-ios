@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Supabase
 
 // MARK: - Restaurant data with optional coordinates for map
 

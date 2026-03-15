@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import UIKit
+import Supabase
 
 class OrderStore: ObservableObject {
 

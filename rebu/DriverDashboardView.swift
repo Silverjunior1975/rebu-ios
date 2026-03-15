@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Supabase
 
 struct DriverDashboardView: View {
 
