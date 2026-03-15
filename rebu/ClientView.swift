@@ -301,16 +301,12 @@ struct ClientView: View {
 
     // MARK: - Helpers
 
-    /// Estimate distance — uses real user location if available, otherwise fallback
+    /// Estimate distance — uses real user location if available.
+    /// When location is unavailable, returns 0 so all restaurants are accessible.
     private func estimatedDistance(for restaurant: RestaurantData) -> Double {
-        guard let coord = restaurant.coordinate else {
-            return 3.0 // default estimate when coordinates unavailable
-        }
-        let userLoc: CLLocation
-        if let loc = locationHelper.userLocation {
-            userLoc = loc
-        } else {
-            userLoc = CLLocation(latitude: 25.7617, longitude: -80.1918)
+        guard let coord = restaurant.coordinate,
+              let userLoc = locationHelper.userLocation else {
+            return 0.0 // location unknown — treat all restaurants as available
         }
         let restaurantLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
         return DeliveryPricing.distanceInMiles(from: userLoc, to: restaurantLocation)
