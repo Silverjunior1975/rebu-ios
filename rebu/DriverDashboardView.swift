@@ -12,14 +12,36 @@ struct DriverDashboardView: View {
         )
     )
 
+    /// Stable driver ID stored per device (same pattern as client account)
+    private var driverId: UUID {
+        if let stored = UserDefaults.standard.string(forKey: "driverId"),
+           let uuid = UUID(uuidString: stored) {
+            return uuid
+        }
+        let newId = UUID()
+        UserDefaults.standard.set(newId.uuidString, forKey: "driverId")
+        return newId
+    }
+
+    /// Active order for THIS driver only (enforces one active order per driver)
     private var activeOrder: Order? {
         orderStore.orders.first {
-            $0.status == .acceptedByDriver || $0.status == .pickedUp
+            ($0.status == .acceptedByDriver || $0.status == .pickedUp) &&
+            $0.driverId == driverId
         }
     }
 
     private var readyOrders: [Order] {
         orderStore.orders.filter { $0.status == .ready && $0.driverId == nil }
+    }
+
+    /// Earnings for THIS driver only
+    private var driverEarnings: Double {
+        orderStore.orders
+            .filter { $0.status == .delivered && $0.driverId == driverId }
+            .reduce(0.0) { total, order in
+                total + estimatedDriverPayout(for: order)
+            }
     }
 
     private let refreshTimer = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
@@ -36,7 +58,7 @@ struct DriverDashboardView: View {
                         Text("Today")
                             .font(.caption2)
                             .foregroundColor(.white)
-                        Text(String(format: "$%.2f", orderStore.todayTotal))
+                        Text(String(format: "$%.2f", driverEarnings))
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -167,7 +189,7 @@ struct DriverDashboardView: View {
             // Before accepting: driver does NOT see customer address
             Button {
                 Task {
-                    await orderStore.updateStatus(for: order.id, to: .acceptedByDriver)
+                    await orderStore.acceptOrder(orderID: order.id, driverID: driverId)
                 }
             } label: {
                 Text("Accept Delivery")
