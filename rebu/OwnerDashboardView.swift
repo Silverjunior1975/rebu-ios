@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 /// Owner dashboard — macOS only (Mac Catalyst).
 /// Shows REBU earnings, driver/restaurant activity, and admin controls.

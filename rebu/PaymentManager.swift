@@ -1,4 +1,6 @@
 import Foundation
+import Combine
+import Supabase
 
 /// Manages Stripe payment operations for REBU.
 /// All server-side Stripe calls go through Supabase Edge Functions.
