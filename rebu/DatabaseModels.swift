@@ -6,9 +6,30 @@ struct RestaurantRow: Codable, Identifiable, Sendable {
     let id: UUID
     let name: String
     let address: String?
+    let latitude: Double?
+    let longitude: Double?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, address
+        case id, name, address, latitude, longitude
+    }
+}
+
+// MARK: - Menu Item (read from "menu_items" table)
+
+struct MenuItemRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let restaurantId: UUID
+    let name: String
+    let price: Double
+    let description: String?
+    let category: String?
+    let imageUrl: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case restaurantId = "restaurant_id"
+        case name, price, description, category
+        case imageUrl = "image_url"
     }
 }
 
@@ -112,5 +133,37 @@ struct DriverAcceptUpdate: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case driverId = "driver_id"
         case status
+    }
+}
+
+// MARK: - Driver (read from "drivers" table)
+
+struct DriverRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let name: String?
+    let phone: String?
+    let isApproved: Bool?
+    let isBlocked: Bool?
+    let isOnline: Bool?
+    let stripeAccountId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, phone
+        case isApproved = "is_approved"
+        case isBlocked = "is_blocked"
+        case isOnline = "is_online"
+        case stripeAccountId = "stripe_account_id"
+    }
+}
+
+// MARK: - Driver Upsert (for setting online/offline status)
+
+struct DriverUpsert: Codable, Sendable {
+    let id: UUID
+    let isOnline: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case isOnline = "is_online"
     }
 }

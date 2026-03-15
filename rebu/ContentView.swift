@@ -60,7 +60,11 @@ struct ContentView: View {
 
                     }
 
-
+                    #if targetEnvironment(macCatalyst)
+                    Button("Owner") {
+                        appRole = .owner
+                    }
+                    #endif
 
                 } else if appRole == .client {
 
@@ -76,9 +80,14 @@ struct ContentView: View {
 
                 } else if appRole == .driver {
 
-                    DriverView()
+                    DriverDashboardView()
 
                 }
+                #if targetEnvironment(macCatalyst)
+                else if appRole == .owner {
+                    OwnerDashboardView()
+                }
+                #endif
 
             }
 
@@ -99,6 +108,10 @@ enum AppRole {
     case restaurant
 
     case driver
+
+    #if targetEnvironment(macCatalyst)
+    case owner
+    #endif
 
 }
 
