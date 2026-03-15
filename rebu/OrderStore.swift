@@ -58,7 +58,7 @@ class OrderStore: ObservableObject {
     // MARK: - Place Order (insert into orders + order_items)
 
     func placeOrder(
-        restaurantId: UUID,
+        restaurantId: Int,
         restaurantName: String,
         restaurantAddress: String,
         customerName: String,

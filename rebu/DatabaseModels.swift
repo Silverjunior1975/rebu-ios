@@ -3,15 +3,18 @@ import Foundation
 // MARK: - Restaurant (read from "restaurants" table)
 
 struct RestaurantRow: Codable, Identifiable, Sendable {
-    let id: UUID
+    let id: Int
     let name: String
     let address: String?
+    let phone: String?
     let latitude: Double?
     let longitude: Double?
+    let ownerId: UUID?
     let isOnline: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, address, latitude, longitude
+        case id, name, address, phone, latitude, longitude
+        case ownerId = "owner_id"
         case isOnline = "is_online"
     }
 }
@@ -20,7 +23,7 @@ struct RestaurantRow: Codable, Identifiable, Sendable {
 
 struct MenuItemRow: Codable, Identifiable, Sendable {
     let id: UUID
-    let restaurantId: UUID
+    let restaurantId: Int
     let name: String
     let price: Double
     let description: String?
@@ -38,7 +41,7 @@ struct MenuItemRow: Codable, Identifiable, Sendable {
 // MARK: - Order (insert into "orders" table)
 
 struct OrderInsert: Codable, Sendable {
-    let restaurantId: UUID
+    let restaurantId: Int
     let restaurantName: String
     let restaurantAddress: String
     let customerName: String
@@ -65,7 +68,7 @@ struct OrderInsert: Codable, Sendable {
 
 struct OrderRow: Codable, Identifiable, Sendable {
     let id: UUID
-    let restaurantId: UUID?
+    let restaurantId: Int?
     let restaurantName: String
     let restaurantAddress: String
     let customerName: String?

@@ -7,7 +7,7 @@ import Supabase
 // MARK: - Restaurant data with optional coordinates for map
 
 struct RestaurantData: Identifiable {
-    let id: UUID
+    let id: Int
     let name: String
     let address: String
     let latitude: Double?

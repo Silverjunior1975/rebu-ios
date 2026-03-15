@@ -5,7 +5,7 @@ struct RestaurantMenuView: View {
 
     @EnvironmentObject var orderStore: OrderStore
 
-    let restaurantId: UUID
+    let restaurantId: Int
     let restaurantName: String
     let restaurantAddress: String
     let customerName: String

@@ -306,7 +306,7 @@ struct OwnerDashboardView: View {
         }
     }
 
-    private func blockRestaurant(_ restaurantId: UUID) async {
+    private func blockRestaurant(_ restaurantId: Int) async {
         do {
             struct BlockUpdate: Codable {
                 let isBlocked: Bool
