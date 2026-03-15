@@ -224,9 +224,7 @@ struct ClientView: View {
                         } else {
                             ForEach(filteredRestaurants) { restaurant in
                                 Button {
-                                    if estimatedDistance(for: restaurant) <= DeliveryPricing.maxServiceDistanceMiles {
-                                        selectedRestaurant = restaurant
-                                    }
+                                    selectedRestaurant = restaurant
                                 } label: {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -257,9 +255,6 @@ struct ClientView: View {
                                     .background(Color.gray.opacity(0.08))
                                     .cornerRadius(10)
                                 }
-                                .disabled(
-                                    estimatedDistance(for: restaurant) > DeliveryPricing.maxServiceDistanceMiles
-                                )
                             }
                         }
 
