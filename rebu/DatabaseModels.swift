@@ -8,9 +8,11 @@ struct RestaurantRow: Codable, Identifiable, Sendable {
     let address: String?
     let latitude: Double?
     let longitude: Double?
+    let isOnline: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, address, latitude, longitude
+        case isOnline = "is_online"
     }
 }
 

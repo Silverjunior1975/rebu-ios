@@ -18,16 +18,47 @@ struct RestaurantData: Identifiable {
     }
 }
 
+// MARK: - Location Manager (centers map on real user location)
+
+final class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var userLocation: CLLocation?
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    func requestPermission() {
+        manager.requestWhenInUseAuthorization()
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+           manager.authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if let loc = locations.last {
+            userLocation = loc
+            manager.stopUpdatingLocation()
+        }
+    }
+}
+
 struct ClientView: View {
 
     @ObservedObject var orderStore: OrderStore
+    @StateObject private var locationHelper = LocationHelper()
 
-    // ===== ACCOUNT (PERSISTENT) =====
+    // ===== ACCOUNT (PERSISTENT — collected at order time, not at launch) =====
     @State private var firstName: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
     @State private var lastName: String = UserDefaults.standard.string(forKey: "lastName") ?? ""
     @State private var phoneNumber: String = UserDefaults.standard.string(forKey: "phoneNumber") ?? ""
     @State private var deliveryAddress: String = UserDefaults.standard.string(forKey: "deliveryAddress") ?? ""
-    @State private var isLoggedIn: Bool = UserDefaults.standard.bool(forKey: "isLoggedIn")
 
     // ===== MAP & DATA =====
     @State private var restaurants: [RestaurantData] = []
@@ -54,50 +85,8 @@ struct ClientView: View {
 
         VStack(spacing: 0) {
 
-            // ===== CREATE ACCOUNT =====
-            if !isLoggedIn {
-                ScrollView {
-                    VStack(spacing: 16) {
-
-                        Text("REBU")
-                            .font(.largeTitle)
-                            .bold()
-
-                        Text("Create your account")
-                            .font(.headline)
-
-                        TextField("First name", text: $firstName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Last name", text: $lastName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Phone number", text: $phoneNumber)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .keyboardType(.phonePad)
-
-                        TextField("Delivery address", text: $deliveryAddress)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        Button {
-                            saveAccount()
-                        } label: {
-                            Text("Continue")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(accountFormValid ? Color.blue : Color.gray)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                        .disabled(!accountFormValid)
-                    }
-                    .padding()
-                }
-            }
-
             // ===== ACTIVE ORDER TRACKING =====
-            else if let order = activeClientOrder {
+            if let order = activeClientOrder {
                 VStack(spacing: 16) {
                     Spacer()
 
@@ -158,7 +147,7 @@ struct ClientView: View {
                 }
             }
 
-            // ===== MAP + RESTAURANTS (logged in) =====
+            // ===== MAP + RESTAURANTS (no login gate — Apple guideline) =====
             else {
                 // Map with search overlay
                 ZStack(alignment: .top) {
@@ -245,23 +234,30 @@ struct ClientView: View {
                             }
                         }
 
-                        Button("Reset account") {
-                            resetAccount()
-                        }
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .padding(.top, 8)
                     }
                     .padding(.horizontal)
                 }
             }
         }
+        .onAppear {
+            locationHelper.requestPermission()
+        }
         .task {
             await fetchRestaurants()
             await fetchActiveOrder()
         }
+        .onChange(of: locationHelper.userLocation) { _, newLocation in
+            if let loc = newLocation {
+                cameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+                    )
+                )
+            }
+        }
         .onReceive(orderRefreshTimer) { _ in
-            if isLoggedIn && activeClientOrder != nil {
+            if activeClientOrder != nil {
                 Task { await fetchActiveOrder() }
             }
         }
@@ -276,41 +272,22 @@ struct ClientView: View {
 
     // MARK: - Helpers
 
-    private var accountFormValid: Bool {
-        !firstName.isEmpty && !lastName.isEmpty &&
-        !phoneNumber.isEmpty && !deliveryAddress.isEmpty
-    }
-
-    /// Estimate distance — uses coordinates if available, otherwise a default
+    /// Estimate distance — uses real user location if available, otherwise fallback
     private func estimatedDistance(for restaurant: RestaurantData) -> Double {
         guard let coord = restaurant.coordinate else {
             return 3.0 // default estimate when coordinates unavailable
         }
-        // Use a fixed reference point (Miami) or user location if available
-        let userLocation = CLLocation(latitude: 25.7617, longitude: -80.1918)
+        let userLoc: CLLocation
+        if let loc = locationHelper.userLocation {
+            userLoc = loc
+        } else {
+            userLoc = CLLocation(latitude: 25.7617, longitude: -80.1918)
+        }
         let restaurantLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
-        return DeliveryPricing.distanceInMiles(from: userLocation, to: restaurantLocation)
+        return DeliveryPricing.distanceInMiles(from: userLoc, to: restaurantLocation)
     }
 
-    private func saveAccount() {
-        UserDefaults.standard.set(firstName, forKey: "firstName")
-        UserDefaults.standard.set(lastName, forKey: "lastName")
-        UserDefaults.standard.set(phoneNumber, forKey: "phoneNumber")
-        UserDefaults.standard.set(deliveryAddress, forKey: "deliveryAddress")
-        UserDefaults.standard.set(true, forKey: "isLoggedIn")
-        isLoggedIn = true
-    }
-
-    private func resetAccount() {
-        UserDefaults.standard.removeObject(forKey: "firstName")
-        UserDefaults.standard.removeObject(forKey: "lastName")
-        UserDefaults.standard.removeObject(forKey: "phoneNumber")
-        UserDefaults.standard.removeObject(forKey: "deliveryAddress")
-        UserDefaults.standard.set(false, forKey: "isLoggedIn")
-        isLoggedIn = false
-    }
-
-    // MARK: - Fetch Restaurants from Supabase
+    // MARK: - Fetch Restaurants from Supabase (only ONLINE)
 
     private func fetchRestaurants() async {
         do {
@@ -320,7 +297,10 @@ struct ClientView: View {
                 .execute()
                 .value
 
-            restaurants = rows.map { row in
+            // Show only restaurants that are online (or where is_online is not set)
+            let onlineRows = rows.filter { $0.isOnline != false }
+
+            restaurants = onlineRows.map { row in
                 RestaurantData(
                     id: row.id,
                     name: row.name,
@@ -330,18 +310,20 @@ struct ClientView: View {
                 )
             }
 
-            // Center map on restaurants if coordinates available
-            let withCoords = restaurants.compactMap { $0.coordinate }
-            if let first = withCoords.first {
-                let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
-                let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
-                cameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng),
-                        span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+            // Center map on user location first; fall back to restaurant average
+            if locationHelper.userLocation == nil {
+                let withCoords = restaurants.compactMap { $0.coordinate }
+                if let first = withCoords.first {
+                    let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
+                    let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng),
+                            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                        )
                     )
-                )
-                _ = first // suppress unused warning
+                    _ = first
+                }
             }
         } catch {
             print("Error fetching restaurants: \(error)")
@@ -351,7 +333,7 @@ struct ClientView: View {
     // MARK: - Fetch Active Order for This Client
 
     private func fetchActiveOrder() async {
-        guard isLoggedIn, !phoneNumber.isEmpty else { return }
+        guard !phoneNumber.isEmpty else { return }
 
         do {
             let rows: [OrderRow] = try await supabaseClient
