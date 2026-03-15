@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 import Combine
 import Supabase
 
@@ -11,6 +12,7 @@ struct DriverDashboardView: View {
     @State private var cashOutSuccess: Bool = false
     @State private var cashOutError: String?
     @StateObject private var paymentManager = PaymentManager()
+    @StateObject private var locationHelper = LocationHelper()
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
@@ -56,8 +58,11 @@ struct DriverDashboardView: View {
         VStack(spacing: 0) {
 
             // MARK: - Map
-            Map(position: $cameraPosition)
-                .frame(height: 220)
+            Map(position: $cameraPosition) {
+                UserAnnotation()
+            }
+            .mapStyle(.standard(showsTraffic: false))
+            .frame(height: 220)
                 .overlay(alignment: .topTrailing) {
                     // Earnings badge (tappable for cash out)
                     Button {
@@ -150,6 +155,19 @@ struct DriverDashboardView: View {
         }
         .navigationTitle("Driver")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            locationHelper.start()
+        }
+        .onChange(of: locationHelper.userLocation) { _, newLocation in
+            if let loc = newLocation {
+                cameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                    )
+                )
+            }
+        }
         .task {
             await orderStore.fetchOrders()
         }

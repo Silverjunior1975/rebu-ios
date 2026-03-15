@@ -151,6 +151,7 @@ struct ClientView: View {
                 // Map with search overlay
                 ZStack(alignment: .top) {
                     Map(position: $cameraPosition) {
+                        UserAnnotation()
                         ForEach(filteredRestaurants) { restaurant in
                             if let coord = restaurant.coordinate {
                                 Marker(restaurant.name, coordinate: coord)
@@ -158,6 +159,7 @@ struct ClientView: View {
                             }
                         }
                     }
+                    .mapStyle(.standard(showsTraffic: false))
                     .frame(height: 280)
 
                     // Search bar overlay
@@ -312,7 +314,7 @@ struct ClientView: View {
             // Center map on user location first; fall back to restaurant average
             if locationHelper.userLocation == nil {
                 let withCoords = restaurants.compactMap { $0.coordinate }
-                if let first = withCoords.first {
+                if !withCoords.isEmpty {
                     let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
                     let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
                     cameraPosition = .region(
@@ -321,7 +323,6 @@ struct ClientView: View {
                             span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
                         )
                     )
-                    _ = first
                 }
             }
         } catch {
