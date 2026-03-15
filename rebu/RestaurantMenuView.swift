@@ -22,6 +22,11 @@ struct RestaurantMenuView: View {
     @State private var noDriversAvailable: Bool = false
     @StateObject private var paymentManager = PaymentManager()
 
+    // Editable delivery info (initialized from passed-in values, editable by user)
+    @State private var editableName: String = ""
+    @State private var editableAddress: String = ""
+    @State private var editablePhone: String = ""
+
     @Environment(\.dismiss) private var dismiss
 
     private var itemsTotal: Double {
@@ -137,6 +142,24 @@ struct RestaurantMenuView: View {
                             .font(.title3)
                     }
 
+                    // Delivery info (editable inline)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Delivery Info")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+
+                        TextField("Your name", text: $editableName)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        TextField("Delivery address", text: $editableAddress)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                        TextField("Phone number", text: $editablePhone)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.phonePad)
+                    }
+                    .padding(.vertical, 4)
+
                     if noDriversAvailable {
                         Text("No drivers available right now")
                             .font(.subheadline)
@@ -170,11 +193,11 @@ struct RestaurantMenuView: View {
                             Spacer()
                         }
                         .padding()
-                        .background((isPlacingOrder || noDriversAvailable) ? Color.gray : Color.blue)
+                        .background(canPlaceOrder ? Color.blue : Color.gray)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                     }
-                    .disabled(isPlacingOrder || noDriversAvailable)
+                    .disabled(!canPlaceOrder)
 
                     Button("Clear Cart") {
                         cart = []
@@ -188,6 +211,12 @@ struct RestaurantMenuView: View {
         }
         .navigationTitle("Menu")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // Initialize editable fields from passed-in values
+            if editableName.isEmpty { editableName = customerName }
+            if editableAddress.isEmpty { editableAddress = customerAddress }
+            if editablePhone.isEmpty { editablePhone = customerPhone }
+        }
         .task {
             await fetchMenuItems()
             await checkDriverAvailability()
@@ -199,6 +228,15 @@ struct RestaurantMenuView: View {
         } message: {
             Text("The restaurant is preparing your order.")
         }
+    }
+
+    // MARK: - Validation
+
+    private var canPlaceOrder: Bool {
+        !isPlacingOrder && !noDriversAvailable &&
+        !editableName.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !editableAddress.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !editablePhone.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     // MARK: - Cart Summary
@@ -287,14 +325,23 @@ struct RestaurantMenuView: View {
             print("Payment setup skipped: \(error)")
         }
 
+        let finalName = editableName.trimmingCharacters(in: .whitespaces)
+        let finalAddress = editableAddress.trimmingCharacters(in: .whitespaces)
+        let finalPhone = editablePhone.trimmingCharacters(in: .whitespaces)
+
+        // Save for future use
+        UserDefaults.standard.set(finalName, forKey: "firstName")
+        UserDefaults.standard.set(finalAddress, forKey: "deliveryAddress")
+        UserDefaults.standard.set(finalPhone, forKey: "phoneNumber")
+
         // Step 2: Place order in Supabase
         let success = await orderStore.placeOrder(
             restaurantId: restaurantId,
             restaurantName: restaurantName,
             restaurantAddress: restaurantAddress,
-            customerName: customerName,
-            customerAddress: customerAddress,
-            customerPhone: customerPhone,
+            customerName: finalName,
+            customerAddress: finalAddress,
+            customerPhone: finalPhone,
             items: cart,
             deliveryFee: deliveryFee
         )
@@ -302,7 +349,7 @@ struct RestaurantMenuView: View {
         // Step 3: Link payment to order if PaymentIntent was created
         if success, let piId = paymentIntentId {
             await paymentManager.linkPaymentToOrder(
-                customerPhone: customerPhone,
+                customerPhone: finalPhone,
                 paymentIntentId: piId
             )
         }
