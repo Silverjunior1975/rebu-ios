@@ -127,7 +127,20 @@ struct DriverDashboardView: View {
         }
     }
 
-    // MARK: - Delivery Card (available order)
+    // MARK: - Estimated Driver Payout
+
+    /// Estimate driver payout from order data (without needing stored distance).
+    /// deliveryFee = driverPayout + rebuCommission. We derive deliveryFee from order total minus items.
+    private func estimatedDriverPayout(for order: Order) -> Double {
+        let itemsTotal = order.items.reduce(0.0) { $0 + Double($1.quantity) * $1.price }
+        let deliveryFee = max(0, order.total - itemsTotal)
+        // deliveryFee = driverPayout + rebuCommission
+        // rebuCommission minimum is $2.50, so driver gets at least deliveryFee - rebuCommission
+        // Approximate: subtract minimum REBU commission
+        return max(2.50, deliveryFee - 2.50)
+    }
+
+    // MARK: - Delivery Card (available order — driver has NOT accepted yet)
 
     private func deliveryCard(_ order: Order) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -141,24 +154,17 @@ struct DriverDashboardView: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing) {
-                    Text("Payout")
+                    Text("Est. Payout")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(String(format: "$%.2f", order.total * 0.3))
+                    Text(String(format: "$%.2f", estimatedDriverPayout(for: order)))
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.green)
                 }
             }
 
-            HStack {
-                Image(systemName: "location.fill")
-                    .foregroundColor(.blue)
-                Text(order.customerAddress)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
+            // Before accepting: driver does NOT see customer address
             Button {
                 Task {
                     await orderStore.updateStatus(for: order.id, to: .acceptedByDriver)
@@ -198,7 +204,7 @@ struct DriverDashboardView: View {
 
             Divider()
 
-            // Restaurant info
+            // Restaurant info (always visible after accepting)
             HStack {
                 Image(systemName: "building.2.fill")
                     .foregroundColor(.orange)
@@ -215,22 +221,29 @@ struct DriverDashboardView: View {
                 }
             }
 
-            // Customer info
-            HStack {
-                Image(systemName: "person.fill")
-                    .foregroundColor(.blue)
-                VStack(alignment: .leading) {
-                    Text("Deliver to")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(order.customerAddress)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+            // Customer address revealed ONLY after picked up
+            if order.status == .pickedUp {
+                HStack {
+                    Image(systemName: "person.fill")
+                        .foregroundColor(.blue)
+                    VStack(alignment: .leading) {
+                        Text("Deliver to")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(order.customerAddress)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
                 }
             }
 
             // Action buttons
             if order.status == .acceptedByDriver {
+                Text("Head to restaurant for pickup")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+
                 Button {
                     Task {
                         await orderStore.updateStatus(for: order.id, to: .pickedUp)

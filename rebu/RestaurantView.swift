@@ -6,7 +6,7 @@ struct RestaurantView: View {
 
     @EnvironmentObject var orderStore: OrderStore
 
-
+    private let refreshTimer = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
     var body: some View {
 
@@ -16,7 +16,7 @@ struct RestaurantView: View {
 
                 ForEach(orderStore.orders.filter {
 
-                    $0.status == .new || $0.status == .accepted
+                    $0.status == .new || $0.status == .accepted || $0.status == .ready
 
                 }) { order in
 
@@ -48,7 +48,7 @@ struct RestaurantView: View {
 
 
 
-                        Text("Total: $\(String(format: "%.2f", order.total))")
+                        Text("Items Total: $\(String(format: "%.2f", order.items.reduce(0) { $0 + Double($1.quantity) * $1.price }))")
 
                             .bold()
 
@@ -90,6 +90,12 @@ struct RestaurantView: View {
 
                         }
 
+                        if order.status == .ready {
+                            Text("Waiting for driver")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+
                     }
 
                     .padding(.vertical, 8)
@@ -103,6 +109,11 @@ struct RestaurantView: View {
         }
         .task {
             await orderStore.fetchOrders()
+        }
+        .onReceive(refreshTimer) { _ in
+            Task {
+                await orderStore.fetchOrders()
+            }
         }
 
     }
