@@ -63,6 +63,7 @@ struct ClientView: View {
     @State private var restaurants: [RestaurantData] = []
     @State private var searchText: String = ""
     @State private var activeClientOrder: Order? = nil
+    @State private var selectedRestaurant: RestaurantData? = nil
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
@@ -146,6 +147,39 @@ struct ClientView: View {
                 }
             }
 
+            // ===== RESTAURANT MENU (state-based navigation) =====
+            else if let restaurant = selectedRestaurant {
+                // Back button to return to map
+                HStack {
+                    Button {
+                        selectedRestaurant = nil
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
+                RestaurantMenuView(
+                    restaurantId: restaurant.id,
+                    restaurantName: restaurant.name,
+                    restaurantAddress: restaurant.address,
+                    customerName: "\(firstName) \(lastName)",
+                    customerAddress: deliveryAddress,
+                    customerPhone: phoneNumber,
+                    distanceMiles: estimatedDistance(for: restaurant),
+                    onOrderPlaced: {
+                        selectedRestaurant = nil
+                        Task { await fetchActiveOrder() }
+                    }
+                )
+            }
+
             // ===== MAP + RESTAURANTS (no login gate — Apple guideline) =====
             else {
                 // Map with search overlay
@@ -189,16 +223,10 @@ struct ClientView: View {
                                 .padding(.vertical, 20)
                         } else {
                             ForEach(filteredRestaurants) { restaurant in
-                                NavigationLink {
-                                    RestaurantMenuView(
-                                        restaurantId: restaurant.id,
-                                        restaurantName: restaurant.name,
-                                        restaurantAddress: restaurant.address,
-                                        customerName: "\(firstName) \(lastName)",
-                                        customerAddress: deliveryAddress,
-                                        customerPhone: phoneNumber,
-                                        distanceMiles: estimatedDistance(for: restaurant)
-                                    )
+                                Button {
+                                    if estimatedDistance(for: restaurant) <= DeliveryPricing.maxServiceDistanceMiles {
+                                        selectedRestaurant = restaurant
+                                    }
                                 } label: {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {

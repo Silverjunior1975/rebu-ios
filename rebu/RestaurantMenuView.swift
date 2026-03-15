@@ -12,6 +12,7 @@ struct RestaurantMenuView: View {
     let customerAddress: String
     let customerPhone: String
     let distanceMiles: Double
+    var onOrderPlaced: (() -> Void)? = nil
 
     @State private var menuItems: [Product] = []
     @State private var cart: [Product] = []
@@ -223,7 +224,11 @@ struct RestaurantMenuView: View {
         }
         .alert("Order Placed!", isPresented: $showOrderConfirmation) {
             Button("OK", role: .cancel) {
-                dismiss()
+                if let callback = onOrderPlaced {
+                    callback()
+                } else {
+                    dismiss()
+                }
             }
         } message: {
             Text("The restaurant is preparing your order.")
