@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
 import Supabase
 
 // MARK: - Restaurant data with optional coordinates for map
@@ -22,16 +23,14 @@ struct RestaurantData: Identifiable {
 
 final class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var userLocation: CLLocation?
-    private let manager = CLLocationManager()
+    private var manager: CLLocationManager?
 
-    override init() {
-        super.init()
-        manager.delegate = self
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-    }
-
-    func requestPermission() {
-        manager.requestWhenInUseAuthorization()
+    func start() {
+        let mgr = CLLocationManager()
+        mgr.delegate = self
+        mgr.desiredAccuracy = kCLLocationAccuracyBest
+        mgr.requestWhenInUseAuthorization()
+        self.manager = mgr
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -240,7 +239,7 @@ struct ClientView: View {
             }
         }
         .onAppear {
-            locationHelper.requestPermission()
+            locationHelper.start()
         }
         .task {
             await fetchRestaurants()
