@@ -312,19 +312,6 @@ struct RestaurantMenuView: View {
             return
         }
 
-        // Step 1: Try to create PaymentIntent (authorize, not capture)
-        var paymentIntentId: String?
-        if let result = await paymentManager.createPaymentIntent(
-            amount: finalTotal,
-            customerPhone: customerPhone
-        ) {
-            paymentIntentId = result.paymentIntentId
-            // Payment authorized — will be captured when restaurant accepts
-        } else if let error = paymentManager.errorMessage {
-            // Edge Function not deployed or Stripe not configured — proceed without payment
-            print("Payment setup skipped: \(error)")
-        }
-
         let finalName = editableName.trimmingCharacters(in: .whitespaces)
         let finalAddress = editableAddress.trimmingCharacters(in: .whitespaces)
         let finalPhone = editablePhone.trimmingCharacters(in: .whitespaces)
@@ -333,6 +320,19 @@ struct RestaurantMenuView: View {
         UserDefaults.standard.set(finalName, forKey: "firstName")
         UserDefaults.standard.set(finalAddress, forKey: "deliveryAddress")
         UserDefaults.standard.set(finalPhone, forKey: "phoneNumber")
+
+        // Step 1: Try to create PaymentIntent (authorize, not capture)
+        var paymentIntentId: String?
+        if let result = await paymentManager.createPaymentIntent(
+            amount: finalTotal,
+            customerPhone: finalPhone
+        ) {
+            paymentIntentId = result.paymentIntentId
+            // Payment authorized — will be captured when restaurant accepts
+        } else if let error = paymentManager.errorMessage {
+            // Edge Function not deployed or Stripe not configured — proceed without payment
+            print("Payment setup skipped: \(error)")
+        }
 
         // Step 2: Place order in Supabase
         let success = await orderStore.placeOrder(
