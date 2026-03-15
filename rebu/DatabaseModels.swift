@@ -135,3 +135,21 @@ struct DriverAcceptUpdate: Codable, Sendable {
         case status
     }
 }
+
+// MARK: - Driver (read from "drivers" table)
+
+struct DriverRow: Codable, Identifiable, Sendable {
+    let id: UUID
+    let name: String?
+    let phone: String?
+    let isApproved: Bool?
+    let isBlocked: Bool?
+    let stripeAccountId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, phone
+        case isApproved = "is_approved"
+        case isBlocked = "is_blocked"
+        case stripeAccountId = "stripe_account_id"
+    }
+}

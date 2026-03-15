@@ -5,6 +5,10 @@ struct DriverDashboardView: View {
 
     @EnvironmentObject var orderStore: OrderStore
     @State private var isOnline: Bool = false
+    @State private var showCashOut: Bool = false
+    @State private var cashOutSuccess: Bool = false
+    @State private var cashOutError: String?
+    @StateObject private var paymentManager = PaymentManager()
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
@@ -53,20 +57,24 @@ struct DriverDashboardView: View {
             Map(position: $cameraPosition)
                 .frame(height: 220)
                 .overlay(alignment: .topTrailing) {
-                    // Earnings badge
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Today")
-                            .font(.caption2)
-                            .foregroundColor(.white)
-                        Text(String(format: "$%.2f", driverEarnings))
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                    // Earnings badge (tappable for cash out)
+                    Button {
+                        showCashOut = true
+                    } label: {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Today")
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                            Text(String(format: "$%.2f", driverEarnings))
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        .padding(8)
+                        .background(Color.black.opacity(0.6))
+                        .cornerRadius(8)
+                        .padding(12)
                     }
-                    .padding(8)
-                    .background(Color.black.opacity(0.6))
-                    .cornerRadius(8)
-                    .padding(12)
                 }
 
             // MARK: - Online/Offline Toggle
@@ -144,6 +152,91 @@ struct DriverDashboardView: View {
             if isOnline {
                 Task {
                     await orderStore.fetchOrders()
+                }
+            }
+        }
+        .sheet(isPresented: $showCashOut) {
+            cashOutSheet
+        }
+        .alert("Cash Out Successful", isPresented: $cashOutSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your earnings have been sent to your bank account.")
+        }
+    }
+
+    // MARK: - Cash Out Sheet
+
+    private var cashOutSheet: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                Spacer()
+
+                Image(systemName: "banknote")
+                    .font(.system(size: 48))
+                    .foregroundColor(.green)
+
+                Text("Your Earnings")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text(String(format: "$%.2f", driverEarnings))
+                    .font(.system(size: 44, weight: .bold))
+                    .foregroundColor(.green)
+
+                if driverEarnings > 0 {
+                    Button {
+                        Task {
+                            let success = await paymentManager.cashOut(
+                                driverId: driverId.uuidString,
+                                amount: driverEarnings
+                            )
+                            if success {
+                                showCashOut = false
+                                cashOutSuccess = true
+                            } else {
+                                cashOutError = paymentManager.errorMessage ?? "Cash out failed"
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if paymentManager.isProcessing {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "arrow.right.circle.fill")
+                                Text("Cash Out")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(paymentManager.isProcessing ? Color.gray : Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(paymentManager.isProcessing)
+                    .padding(.horizontal)
+                } else {
+                    Text("Complete deliveries to earn money")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+
+                if let error = cashOutError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+
+                Spacer()
+            }
+            .navigationTitle("Cash Out")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { showCashOut = false }
                 }
             }
         }

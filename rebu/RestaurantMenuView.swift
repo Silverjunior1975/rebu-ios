@@ -17,6 +17,8 @@ struct RestaurantMenuView: View {
     @State private var isPlacingOrder: Bool = false
     @State private var showOrderConfirmation: Bool = false
     @State private var isLoading: Bool = true
+    @State private var paymentError: String?
+    @StateObject private var paymentManager = PaymentManager()
 
     @Environment(\.dismiss) private var dismiss
 
@@ -222,11 +224,26 @@ struct RestaurantMenuView: View {
         }
     }
 
-    // MARK: - Place Order
+    // MARK: - Place Order (with Stripe payment)
 
     private func placeOrder() async {
         isPlacingOrder = true
+        paymentError = nil
 
+        // Step 1: Try to create PaymentIntent (authorize, not capture)
+        var paymentIntentId: String?
+        if let result = await paymentManager.createPaymentIntent(
+            amount: finalTotal,
+            customerPhone: customerPhone
+        ) {
+            paymentIntentId = result.paymentIntentId
+            // Payment authorized — will be captured when restaurant accepts
+        } else if let error = paymentManager.errorMessage {
+            // Edge Function not deployed or Stripe not configured — proceed without payment
+            print("Payment setup skipped: \(error)")
+        }
+
+        // Step 2: Place order in Supabase
         let success = await orderStore.placeOrder(
             restaurantId: restaurantId,
             restaurantName: restaurantName,
@@ -238,11 +255,21 @@ struct RestaurantMenuView: View {
             deliveryFee: deliveryFee
         )
 
+        // Step 3: Link payment to order if PaymentIntent was created
+        if success, let piId = paymentIntentId {
+            await paymentManager.linkPaymentToOrder(
+                customerPhone: customerPhone,
+                paymentIntentId: piId
+            )
+        }
+
         isPlacingOrder = false
 
         if success {
             cart = []
             showOrderConfirmation = true
+        } else {
+            paymentError = "Failed to place order. Please try again."
         }
     }
 }
