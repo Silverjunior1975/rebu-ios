@@ -16,6 +16,7 @@ struct RestaurantMenuView: View {
 
     @State private var menuItems: [Product] = []
     @State private var cart: [Product] = []
+    @State private var menuIdMap: [UUID: Int] = [:] // Product.id → menu_items.id
     @State private var isPlacingOrder: Bool = false
     @State private var showOrderConfirmation: Bool = false
     @State private var isLoading: Bool = true
@@ -277,7 +278,9 @@ struct RestaurantMenuView: View {
                 .value
 
             menuItems = rows.map { row in
-                Product(id: UUID(), name: row.name, price: row.price)
+                let product = Product(id: UUID(), name: row.name, price: row.price)
+                menuIdMap[product.id] = row.id
+                return product
             }
             isLoading = false
         } catch {
@@ -340,15 +343,19 @@ struct RestaurantMenuView: View {
         }
 
         // Step 2: Place order in Supabase
+        // Aggregate cart by menu_id
+        var menuQuantities: [Int: Int] = [:]
+        for product in cart {
+            if let menuId = menuIdMap[product.id] {
+                menuQuantities[menuId, default: 0] += 1
+            }
+        }
+        let orderItems = menuQuantities.map { (menuId: $0.key, quantity: $0.value) }
+
         let success = await orderStore.placeOrder(
+            customerId: nil,
             restaurantId: restaurantId,
-            restaurantName: restaurantName,
-            restaurantAddress: restaurantAddress,
-            customerName: finalName,
-            customerAddress: finalAddress,
-            customerPhone: finalPhone,
-            items: cart,
-            deliveryFee: deliveryFee
+            items: orderItems
         )
 
         // Step 3: Link payment to order if PaymentIntent was created

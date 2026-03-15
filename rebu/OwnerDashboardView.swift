@@ -13,31 +13,8 @@ struct OwnerDashboardView: View {
 
     // MARK: - Computed Totals
 
-    private var totalOrderValue: Double {
-        deliveredOrders.reduce(0) { $0 + $1.total }
-    }
-
-    private var totalDeliveryFees: Double {
-        deliveredOrders.reduce(0) { $0 + ($1.deliveryFee ?? 0) }
-    }
-
-    private var totalRestaurantPayouts: Double {
-        deliveredOrders.reduce(0) { total, order in
-            let itemsTotal = (order.orderItems ?? []).reduce(0.0) { $0 + Double($1.quantity) * $1.price }
-            return total + itemsTotal
-        }
-    }
-
-    private var totalDriverPayouts: Double {
-        deliveredOrders.reduce(0) { total, order in
-            let deliveryFee = order.deliveryFee ?? 0
-            let driverPayout = max(2.50, deliveryFee - 2.50)
-            return total + driverPayout
-        }
-    }
-
-    private var totalRebuEarnings: Double {
-        totalDeliveryFees - totalDriverPayouts
+    private var totalDeliveredCount: Int {
+        deliveredOrders.count
     }
 
     /// Number of deliveries grouped by driver
@@ -52,12 +29,13 @@ struct OwnerDashboardView: View {
     }
 
     /// Number of orders per restaurant (all statuses)
-    private var restaurantOrderCounts: [(name: String, count: Int)] {
-        var counts: [String: Int] = [:]
+    private var restaurantOrderCounts: [(restaurantId: Int, count: Int)] {
+        var counts: [Int: Int] = [:]
         for order in deliveredOrders {
-            counts[order.restaurantName, default: 0] += 1
+            let rId = order.restaurantId ?? 0
+            counts[rId, default: 0] += 1
         }
-        return counts.map { (name: $0.key, count: $0.value) }
+        return counts.map { (restaurantId: $0.key, count: $0.value) }
             .sorted { $0.count > $1.count }
     }
 
@@ -73,13 +51,8 @@ struct OwnerDashboardView: View {
                 } else {
 
                     // MARK: - Earnings Summary
-                    Section("REBU Earnings") {
-                        statRow("Total REBU Earnings", totalRebuEarnings)
-                        statRow("Total Driver Payouts", totalDriverPayouts)
-                        statRow("Total Restaurant Payouts", totalRestaurantPayouts)
-                        statRow("Total Order Value", totalOrderValue)
-                        statRow("Total Delivery Fees", totalDeliveryFees)
-                        Text("Delivered Orders: \(deliveredOrders.count)")
+                    Section("REBU Summary") {
+                        Text("Delivered Orders: \(totalDeliveredCount)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -120,7 +93,7 @@ struct OwnerDashboardView: View {
                                             .foregroundColor(.gray)
                                     }
                                     Spacer()
-                                    let count = restaurantOrderCounts.first { $0.name == restaurant.name }?.count ?? 0
+                                    let count = restaurantOrderCounts.first { $0.restaurantId == restaurant.id }?.count ?? 0
                                     Text("\(count) orders")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
@@ -199,19 +172,6 @@ struct OwnerDashboardView: View {
         }
     }
 
-    // MARK: - Helpers
-
-    private func statRow(_ label: String, _ value: Double) -> some View {
-        HStack {
-            Text(label)
-                .font(.subheadline)
-            Spacer()
-            Text(String(format: "$%.2f", value))
-                .font(.subheadline)
-                .fontWeight(.semibold)
-        }
-    }
-
     // MARK: - Data Loading
 
     private func loadDashboard() async {
@@ -232,7 +192,7 @@ struct OwnerDashboardView: View {
         do {
             deliveredOrders = try await supabaseClient
                 .from("orders")
-                .select("*, order_items(*)")
+                .select()
                 .eq("status", value: "DELIVERED")
                 .execute()
                 .value

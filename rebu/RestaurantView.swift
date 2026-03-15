@@ -23,7 +23,7 @@ struct RestaurantView: View {
 
 
 
-                        Text("Order #\(order.id.uuidString.prefix(8))")
+                        Text("Order #\(order.id)")
 
                             .font(.headline)
 

@@ -352,20 +352,16 @@ struct ClientView: View {
     // MARK: - Fetch Active Order for This Client
 
     private func fetchActiveOrder() async {
-        guard !phoneNumber.isEmpty else { return }
-
         do {
             let rows: [OrderRow] = try await supabaseClient
                 .from("orders")
-                .select("*, order_items(*)")
-                .eq("customer_phone", value: phoneNumber)
+                .select()
                 .in("status", values: [
                     OrderStatus.new.rawValue,
                     OrderStatus.accepted.rawValue,
                     OrderStatus.ready.rawValue,
                     OrderStatus.acceptedByDriver.rawValue,
-                    OrderStatus.pickedUp.rawValue,
-                    OrderStatus.delivered.rawValue
+                    OrderStatus.pickedUp.rawValue
                 ])
                 .order("id", ascending: false)
                 .limit(1)
@@ -375,24 +371,16 @@ struct ClientView: View {
             if let row = rows.first {
                 let order = Order(
                     id: row.id,
-                    items: (row.orderItems ?? []).map { item in
-                        OrderItem(name: item.name, quantity: item.quantity, price: item.price)
-                    },
-                    total: row.total,
-                    restaurantName: row.restaurantName,
-                    restaurantAddress: row.restaurantAddress,
-                    customerAddress: row.customerAddress,
-                    customerPhone: row.customerPhone,
+                    items: [OrderItem(name: "Item #\(row.menuId ?? 0)", quantity: row.quantity ?? 1, price: 0)],
+                    total: 0,
+                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
+                    restaurantAddress: "",
+                    customerAddress: "",
+                    customerPhone: "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
                 )
-                // Only track non-delivered orders (or recently delivered)
-                if order.status != .delivered {
-                    activeClientOrder = order
-                } else if activeClientOrder?.id == order.id {
-                    // Order just got delivered — show delivered state
-                    activeClientOrder = order
-                }
+                activeClientOrder = order
             } else {
                 activeClientOrder = nil
             }
