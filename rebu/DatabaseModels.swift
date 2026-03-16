@@ -44,11 +44,13 @@ struct OrderInsert: Codable, Sendable {
     let customerId: UUID?
     let restaurantId: Int
     let status: String
+    let deliveryAddress: String?
 
     enum CodingKeys: String, CodingKey {
         case customerId = "customer_id"
         case restaurantId = "restaurant_id"
         case status
+        case deliveryAddress = "delivery_address"
     }
 }
 
@@ -60,6 +62,7 @@ struct OrderRow: Codable, Identifiable, Sendable {
     let restaurantId: Int?
     let driverId: UUID?
     let status: String
+    let deliveryAddress: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -67,6 +70,7 @@ struct OrderRow: Codable, Identifiable, Sendable {
         case restaurantId = "restaurant_id"
         case driverId = "driver_id"
         case status
+        case deliveryAddress = "delivery_address"
     }
 }
 

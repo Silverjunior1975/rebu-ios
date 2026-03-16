@@ -391,7 +391,7 @@ struct ClientView: View {
                     total: 0,
                     restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
                     restaurantAddress: "",
-                    customerAddress: "",
+                    customerAddress: row.deliveryAddress ?? "",
                     customerPhone: "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
