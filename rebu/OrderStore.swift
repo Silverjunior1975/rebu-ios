@@ -29,6 +29,36 @@ class OrderStore: ObservableObject {
                 .execute()
                 .value
 
+            // Fetch all menu items once for price lookup
+            var menuItemPrices: [Int: (name: String, price: Double)] = [:]
+            do {
+                let allMenuItems: [MenuItemRow] = try await supabaseClient
+                    .from("menu_items")
+                    .select()
+                    .execute()
+                    .value
+                for mi in allMenuItems {
+                    menuItemPrices[mi.id] = (name: mi.name, price: mi.price)
+                }
+            } catch {
+                print("Error fetching menu items for prices: \(error)")
+            }
+
+            // Fetch all restaurant names once
+            var restaurantNames: [Int: String] = [:]
+            do {
+                let allRestaurants: [RestaurantRow] = try await supabaseClient
+                    .from("restaurants")
+                    .select()
+                    .execute()
+                    .value
+                for r in allRestaurants {
+                    restaurantNames[r.id] = r.name
+                }
+            } catch {
+                print("Error fetching restaurant names: \(error)")
+            }
+
             // For each order row, fetch its order_items
             var fetchedOrders: [Order] = []
             for row in rows {
@@ -41,17 +71,26 @@ class OrderStore: ObservableObject {
                         .execute()
                         .value
                     items = itemRows.map { item in
-                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                        let menuId = item.menuItemId ?? 0
+                        let info = menuItemPrices[menuId]
+                        return OrderItem(
+                            name: info?.name ?? "Item #\(menuId)",
+                            quantity: item.quantity,
+                            price: info?.price ?? 0
+                        )
                     }
                 } catch {
                     print("Error fetching order items for order \(row.id): \(error)")
                 }
 
+                let itemsTotal = items.reduce(0) { $0 + Double($1.quantity) * $1.price }
+                let rName = restaurantNames[row.restaurantId ?? 0] ?? "Restaurant #\(row.restaurantId ?? 0)"
+
                 let order = Order(
                     id: row.id,
                     items: items,
-                    total: 0,
-                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
+                    total: itemsTotal,
+                    restaurantName: rName,
                     restaurantAddress: "",
                     customerAddress: row.deliveryAddress ?? "",
                     customerPhone: "",
