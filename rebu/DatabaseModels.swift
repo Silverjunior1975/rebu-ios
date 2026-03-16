@@ -3,22 +3,27 @@ import Foundation
 // MARK: - Restaurant (read from "restaurants" table)
 
 struct RestaurantRow: Codable, Identifiable, Sendable {
-    let id: UUID
+    let id: Int
     let name: String
     let address: String?
+    let phone: String?
     let latitude: Double?
     let longitude: Double?
+    let ownerId: UUID?
+    let isOnline: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, address, latitude, longitude
+        case id, name, address, phone, latitude, longitude
+        case ownerId = "owner_id"
+        case isOnline = "is_online"
     }
 }
 
 // MARK: - Menu Item (read from "menu_items" table)
 
 struct MenuItemRow: Codable, Identifiable, Sendable {
-    let id: UUID
-    let restaurantId: UUID
+    let id: Int
+    let restaurantId: Int
     let name: String
     let price: Double
     let description: String?
@@ -36,87 +41,65 @@ struct MenuItemRow: Codable, Identifiable, Sendable {
 // MARK: - Order (insert into "orders" table)
 
 struct OrderInsert: Codable, Sendable {
-    let restaurantId: UUID
-    let restaurantName: String
-    let restaurantAddress: String
-    let customerName: String
-    let customerAddress: String
-    let customerPhone: String
-    let total: Double
-    let deliveryFee: Double
+    let customerId: UUID?
+    let restaurantId: Int
     let status: String
 
     enum CodingKeys: String, CodingKey {
+        case customerId = "customer_id"
         case restaurantId = "restaurant_id"
-        case restaurantName = "restaurant_name"
-        case restaurantAddress = "restaurant_address"
-        case customerName = "customer_name"
-        case customerAddress = "customer_address"
-        case customerPhone = "customer_phone"
-        case total
-        case deliveryFee = "delivery_fee"
         case status
     }
 }
 
-// MARK: - Order (read from "orders" table, with nested order_items)
+// MARK: - Order (read from "orders" table)
 
 struct OrderRow: Codable, Identifiable, Sendable {
-    let id: UUID
-    let restaurantId: UUID?
-    let restaurantName: String
-    let restaurantAddress: String
-    let customerName: String?
-    let customerAddress: String
-    let customerPhone: String
-    let total: Double
-    let deliveryFee: Double?
-    let status: String
+    let id: Int
+    let customerId: UUID?
+    let restaurantId: Int?
     let driverId: UUID?
-    let orderItems: [OrderItemRow]?
+    let status: String
 
     enum CodingKeys: String, CodingKey {
         case id
+        case customerId = "customer_id"
         case restaurantId = "restaurant_id"
-        case restaurantName = "restaurant_name"
-        case restaurantAddress = "restaurant_address"
-        case customerName = "customer_name"
-        case customerAddress = "customer_address"
-        case customerPhone = "customer_phone"
-        case total
-        case deliveryFee = "delivery_fee"
-        case status
         case driverId = "driver_id"
-        case orderItems = "order_items"
+        case status
     }
 }
 
 // MARK: - Order Item (insert into "order_items" table)
 
 struct OrderItemInsert: Codable, Sendable {
-    let orderId: UUID
-    let name: String
+    let orderId: Int
+    let menuItemId: Int
     let quantity: Int
-    let price: Double
 
     enum CodingKeys: String, CodingKey {
         case orderId = "order_id"
-        case name, quantity, price
+        case menuItemId = "menu_item_id"
+        case quantity
     }
 }
 
 // MARK: - Order Item (read from "order_items" table)
 
 struct OrderItemRow: Codable, Identifiable, Sendable {
-    let id: UUID
-    let name: String
+    let id: Int
+    let orderId: Int?
+    let menuItemId: Int?
     let quantity: Int
-    let price: Double
 
     enum CodingKeys: String, CodingKey {
-        case id, name, quantity, price
+        case id
+        case orderId = "order_id"
+        case menuItemId = "menu_item_id"
+        case quantity
     }
 }
+
 
 // MARK: - Status Update (for PATCH to "orders" table)
 

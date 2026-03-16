@@ -25,28 +25,40 @@ class OrderStore: ObservableObject {
         do {
             let rows: [OrderRow] = try await supabaseClient
                 .from("orders")
-                .select("*, order_items(*)")
+                .select()
                 .execute()
                 .value
 
-            let fetchedOrders = rows.map { row in
-                Order(
+            // For each order row, fetch its order_items
+            var fetchedOrders: [Order] = []
+            for row in rows {
+                var items: [OrderItem] = []
+                do {
+                    let itemRows: [OrderItemRow] = try await supabaseClient
+                        .from("order_items")
+                        .select()
+                        .eq("order_id", value: row.id)
+                        .execute()
+                        .value
+                    items = itemRows.map { item in
+                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                    }
+                } catch {
+                    print("Error fetching order items for order \(row.id): \(error)")
+                }
+
+                let order = Order(
                     id: row.id,
-                    items: (row.orderItems ?? []).map { item in
-                        OrderItem(
-                            name: item.name,
-                            quantity: item.quantity,
-                            price: item.price
-                        )
-                    },
-                    total: row.total,
-                    restaurantName: row.restaurantName,
-                    restaurantAddress: row.restaurantAddress,
-                    customerAddress: row.customerAddress,
-                    customerPhone: row.customerPhone,
+                    items: items,
+                    total: 0,
+                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
+                    restaurantAddress: "",
+                    customerAddress: "",
+                    customerPhone: "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
                 )
+                fetchedOrders.append(order)
             }
 
             self.orders = fetchedOrders
@@ -58,31 +70,18 @@ class OrderStore: ObservableObject {
     // MARK: - Place Order (insert into orders + order_items)
 
     func placeOrder(
-        restaurantId: UUID,
-        restaurantName: String,
-        restaurantAddress: String,
-        customerName: String,
-        customerAddress: String,
-        customerPhone: String,
-        items: [Product],
-        deliveryFee: Double
+        customerId: UUID?,
+        restaurantId: Int,
+        items: [(menuItemId: Int, quantity: Int)]
     ) async -> Bool {
-        let itemsTotal = items.reduce(0.0) { $0 + $1.price }
-        let total = itemsTotal + deliveryFee
-
-        let orderInsert = OrderInsert(
-            restaurantId: restaurantId,
-            restaurantName: restaurantName,
-            restaurantAddress: restaurantAddress,
-            customerName: customerName,
-            customerAddress: customerAddress,
-            customerPhone: customerPhone,
-            total: total,
-            deliveryFee: deliveryFee,
-            status: OrderStatus.new.rawValue
-        )
-
         do {
+            // Step 1: Insert order row and get back the created order
+            let orderInsert = OrderInsert(
+                customerId: customerId,
+                restaurantId: restaurantId,
+                status: OrderStatus.new.rawValue
+            )
+
             let createdOrder: OrderRow = try await supabaseClient
                 .from("orders")
                 .insert(orderInsert)
@@ -91,12 +90,12 @@ class OrderStore: ObservableObject {
                 .execute()
                 .value
 
-            let orderItems = items.map { product in
+            // Step 2: Insert order items with the created order's id
+            let orderItems = items.map { item in
                 OrderItemInsert(
                     orderId: createdOrder.id,
-                    name: product.name,
-                    quantity: 1,
-                    price: product.price
+                    menuItemId: item.menuItemId,
+                    quantity: item.quantity
                 )
             }
 
@@ -115,7 +114,7 @@ class OrderStore: ObservableObject {
 
     // MARK: - Update Order Status
 
-    func updateStatus(for orderID: UUID, to newStatus: OrderStatus) async {
+    func updateStatus(for orderID: Int, to newStatus: OrderStatus) async {
         do {
             try await supabaseClient
                 .from("orders")
@@ -131,7 +130,7 @@ class OrderStore: ObservableObject {
 
     // MARK: - Accept Order (assign driver)
 
-    func acceptOrder(orderID: UUID, driverID: UUID) async {
+    func acceptOrder(orderID: Int, driverID: UUID) async {
         do {
             try await supabaseClient
                 .from("orders")
@@ -150,19 +149,19 @@ class OrderStore: ObservableObject {
 
     // MARK: - Pick Up Order
 
-    func pickUpOrder(orderID: UUID) async {
+    func pickUpOrder(orderID: Int) async {
         await updateStatus(for: orderID, to: .pickedUp)
     }
 
     // MARK: - Deliver Order
 
-    func deliverOrder(orderID: UUID) async {
+    func deliverOrder(orderID: Int) async {
         await updateStatus(for: orderID, to: .delivered)
     }
 
     // MARK: - Mark Delivered
 
-    func markDelivered(orderID: UUID) async {
+    func markDelivered(orderID: Int) async {
         await updateStatus(for: orderID, to: .delivered)
     }
 

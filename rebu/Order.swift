@@ -26,7 +26,7 @@ struct OrderItem:Identifiable {
 }
 struct Order: Identifiable {
    
-    let id: UUID
+    let id: Int
     let items: [OrderItem]
     let total: Double
     

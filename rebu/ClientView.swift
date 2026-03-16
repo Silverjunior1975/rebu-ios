@@ -1,12 +1,13 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
 import Supabase
 
 // MARK: - Restaurant data with optional coordinates for map
 
 struct RestaurantData: Identifiable {
-    let id: UUID
+    let id: Int
     let name: String
     let address: String
     let latitude: Double?
@@ -18,21 +19,51 @@ struct RestaurantData: Identifiable {
     }
 }
 
+// MARK: - Location Manager (centers map on real user location)
+
+final class LocationHelper: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published var userLocation: CLLocation?
+    private var manager: CLLocationManager?
+
+    func start() {
+        let mgr = CLLocationManager()
+        mgr.delegate = self
+        mgr.desiredAccuracy = kCLLocationAccuracyBest
+        mgr.requestWhenInUseAuthorization()
+        self.manager = mgr
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+           manager.authorizationStatus == .authorizedAlways {
+            manager.startUpdatingLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        if let loc = locations.last {
+            userLocation = loc
+            manager.stopUpdatingLocation()
+        }
+    }
+}
+
 struct ClientView: View {
 
     @ObservedObject var orderStore: OrderStore
+    @StateObject private var locationHelper = LocationHelper()
 
-    // ===== ACCOUNT (PERSISTENT) =====
+    // ===== ACCOUNT (PERSISTENT — collected at order time, not at launch) =====
     @State private var firstName: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
     @State private var lastName: String = UserDefaults.standard.string(forKey: "lastName") ?? ""
     @State private var phoneNumber: String = UserDefaults.standard.string(forKey: "phoneNumber") ?? ""
     @State private var deliveryAddress: String = UserDefaults.standard.string(forKey: "deliveryAddress") ?? ""
-    @State private var isLoggedIn: Bool = UserDefaults.standard.bool(forKey: "isLoggedIn")
 
     // ===== MAP & DATA =====
     @State private var restaurants: [RestaurantData] = []
     @State private var searchText: String = ""
     @State private var activeClientOrder: Order? = nil
+    @State private var selectedRestaurant: RestaurantData? = nil
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 25.7617, longitude: -80.1918),
@@ -54,50 +85,8 @@ struct ClientView: View {
 
         VStack(spacing: 0) {
 
-            // ===== CREATE ACCOUNT =====
-            if !isLoggedIn {
-                ScrollView {
-                    VStack(spacing: 16) {
-
-                        Text("REBU")
-                            .font(.largeTitle)
-                            .bold()
-
-                        Text("Create your account")
-                            .font(.headline)
-
-                        TextField("First name", text: $firstName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Last name", text: $lastName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        TextField("Phone number", text: $phoneNumber)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .keyboardType(.phonePad)
-
-                        TextField("Delivery address", text: $deliveryAddress)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                        Button {
-                            saveAccount()
-                        } label: {
-                            Text("Continue")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(accountFormValid ? Color.blue : Color.gray)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                        }
-                        .disabled(!accountFormValid)
-                    }
-                    .padding()
-                }
-            }
-
             // ===== ACTIVE ORDER TRACKING =====
-            else if let order = activeClientOrder {
+            if let order = activeClientOrder {
                 VStack(spacing: 16) {
                     Spacer()
 
@@ -158,11 +147,45 @@ struct ClientView: View {
                 }
             }
 
-            // ===== MAP + RESTAURANTS (logged in) =====
+            // ===== RESTAURANT MENU (state-based navigation) =====
+            else if let restaurant = selectedRestaurant {
+                // Back button to return to map
+                HStack {
+                    Button {
+                        selectedRestaurant = nil
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
+                RestaurantMenuView(
+                    restaurantId: restaurant.id,
+                    restaurantName: restaurant.name,
+                    restaurantAddress: restaurant.address,
+                    customerName: "\(firstName) \(lastName)",
+                    customerAddress: deliveryAddress,
+                    customerPhone: phoneNumber,
+                    distanceMiles: estimatedDistance(for: restaurant),
+                    onOrderPlaced: {
+                        selectedRestaurant = nil
+                        Task { await fetchActiveOrder() }
+                    }
+                )
+            }
+
+            // ===== MAP + RESTAURANTS (no login gate — Apple guideline) =====
             else {
                 // Map with search overlay
                 ZStack(alignment: .top) {
                     Map(position: $cameraPosition) {
+                        UserAnnotation()
                         ForEach(filteredRestaurants) { restaurant in
                             if let coord = restaurant.coordinate {
                                 Marker(restaurant.name, coordinate: coord)
@@ -170,6 +193,7 @@ struct ClientView: View {
                             }
                         }
                     }
+                    .mapStyle(.standard(showsTraffic: false))
                     .frame(height: 280)
 
                     // Search bar overlay
@@ -199,16 +223,8 @@ struct ClientView: View {
                                 .padding(.vertical, 20)
                         } else {
                             ForEach(filteredRestaurants) { restaurant in
-                                NavigationLink {
-                                    RestaurantMenuView(
-                                        restaurantId: restaurant.id,
-                                        restaurantName: restaurant.name,
-                                        restaurantAddress: restaurant.address,
-                                        customerName: "\(firstName) \(lastName)",
-                                        customerAddress: deliveryAddress,
-                                        customerPhone: phoneNumber,
-                                        distanceMiles: estimatedDistance(for: restaurant)
-                                    )
+                                Button {
+                                    selectedRestaurant = restaurant
                                 } label: {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -239,29 +255,33 @@ struct ClientView: View {
                                     .background(Color.gray.opacity(0.08))
                                     .cornerRadius(10)
                                 }
-                                .disabled(
-                                    estimatedDistance(for: restaurant) > DeliveryPricing.maxServiceDistanceMiles
-                                )
                             }
                         }
 
-                        Button("Reset account") {
-                            resetAccount()
-                        }
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .padding(.top, 8)
                     }
                     .padding(.horizontal)
                 }
             }
         }
+        .onAppear {
+            locationHelper.start()
+        }
         .task {
             await fetchRestaurants()
             await fetchActiveOrder()
         }
+        .onChange(of: locationHelper.userLocation) { _, newLocation in
+            if let loc = newLocation {
+                cameraPosition = .region(
+                    MKCoordinateRegion(
+                        center: loc.coordinate,
+                        span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)
+                    )
+                )
+            }
+        }
         .onReceive(orderRefreshTimer) { _ in
-            if isLoggedIn && activeClientOrder != nil {
+            if activeClientOrder != nil {
                 Task { await fetchActiveOrder() }
             }
         }
@@ -276,41 +296,18 @@ struct ClientView: View {
 
     // MARK: - Helpers
 
-    private var accountFormValid: Bool {
-        !firstName.isEmpty && !lastName.isEmpty &&
-        !phoneNumber.isEmpty && !deliveryAddress.isEmpty
-    }
-
-    /// Estimate distance — uses coordinates if available, otherwise a default
+    /// Estimate distance — uses real user location if available.
+    /// When location is unavailable, returns 0 so all restaurants are accessible.
     private func estimatedDistance(for restaurant: RestaurantData) -> Double {
-        guard let coord = restaurant.coordinate else {
-            return 3.0 // default estimate when coordinates unavailable
+        guard let coord = restaurant.coordinate,
+              let userLoc = locationHelper.userLocation else {
+            return 0.0 // location unknown — treat all restaurants as available
         }
-        // Use a fixed reference point (Miami) or user location if available
-        let userLocation = CLLocation(latitude: 25.7617, longitude: -80.1918)
         let restaurantLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
-        return DeliveryPricing.distanceInMiles(from: userLocation, to: restaurantLocation)
+        return DeliveryPricing.distanceInMiles(from: userLoc, to: restaurantLocation)
     }
 
-    private func saveAccount() {
-        UserDefaults.standard.set(firstName, forKey: "firstName")
-        UserDefaults.standard.set(lastName, forKey: "lastName")
-        UserDefaults.standard.set(phoneNumber, forKey: "phoneNumber")
-        UserDefaults.standard.set(deliveryAddress, forKey: "deliveryAddress")
-        UserDefaults.standard.set(true, forKey: "isLoggedIn")
-        isLoggedIn = true
-    }
-
-    private func resetAccount() {
-        UserDefaults.standard.removeObject(forKey: "firstName")
-        UserDefaults.standard.removeObject(forKey: "lastName")
-        UserDefaults.standard.removeObject(forKey: "phoneNumber")
-        UserDefaults.standard.removeObject(forKey: "deliveryAddress")
-        UserDefaults.standard.set(false, forKey: "isLoggedIn")
-        isLoggedIn = false
-    }
-
-    // MARK: - Fetch Restaurants from Supabase
+    // MARK: - Fetch Restaurants from Supabase (only ONLINE)
 
     private func fetchRestaurants() async {
         do {
@@ -320,7 +317,10 @@ struct ClientView: View {
                 .execute()
                 .value
 
-            restaurants = rows.map { row in
+            // Show only restaurants that are online (or where is_online is not set)
+            let onlineRows = rows.filter { $0.isOnline != false }
+
+            restaurants = onlineRows.map { row in
                 RestaurantData(
                     id: row.id,
                     name: row.name,
@@ -330,18 +330,19 @@ struct ClientView: View {
                 )
             }
 
-            // Center map on restaurants if coordinates available
-            let withCoords = restaurants.compactMap { $0.coordinate }
-            if let first = withCoords.first {
-                let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
-                let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
-                cameraPosition = .region(
-                    MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng),
-                        span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+            // Center map on user location first; fall back to restaurant average
+            if locationHelper.userLocation == nil {
+                let withCoords = restaurants.compactMap { $0.coordinate }
+                if !withCoords.isEmpty {
+                    let avgLat = withCoords.map(\.latitude).reduce(0, +) / Double(withCoords.count)
+                    let avgLng = withCoords.map(\.longitude).reduce(0, +) / Double(withCoords.count)
+                    cameraPosition = .region(
+                        MKCoordinateRegion(
+                            center: CLLocationCoordinate2D(latitude: avgLat, longitude: avgLng),
+                            span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
+                        )
                     )
-                )
-                _ = first // suppress unused warning
+                }
             }
         } catch {
             print("Error fetching restaurants: \(error)")
@@ -351,20 +352,16 @@ struct ClientView: View {
     // MARK: - Fetch Active Order for This Client
 
     private func fetchActiveOrder() async {
-        guard isLoggedIn, !phoneNumber.isEmpty else { return }
-
         do {
             let rows: [OrderRow] = try await supabaseClient
                 .from("orders")
-                .select("*, order_items(*)")
-                .eq("customer_phone", value: phoneNumber)
+                .select()
                 .in("status", values: [
                     OrderStatus.new.rawValue,
                     OrderStatus.accepted.rawValue,
                     OrderStatus.ready.rawValue,
                     OrderStatus.acceptedByDriver.rawValue,
-                    OrderStatus.pickedUp.rawValue,
-                    OrderStatus.delivered.rawValue
+                    OrderStatus.pickedUp.rawValue
                 ])
                 .order("id", ascending: false)
                 .limit(1)
@@ -372,26 +369,34 @@ struct ClientView: View {
                 .value
 
             if let row = rows.first {
+                // Fetch order items for this order
+                var items: [OrderItem] = []
+                do {
+                    let itemRows: [OrderItemRow] = try await supabaseClient
+                        .from("order_items")
+                        .select()
+                        .eq("order_id", value: row.id)
+                        .execute()
+                        .value
+                    items = itemRows.map { item in
+                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                    }
+                } catch {
+                    print("Error fetching order items: \(error)")
+                }
+
                 let order = Order(
                     id: row.id,
-                    items: (row.orderItems ?? []).map { item in
-                        OrderItem(name: item.name, quantity: item.quantity, price: item.price)
-                    },
-                    total: row.total,
-                    restaurantName: row.restaurantName,
-                    restaurantAddress: row.restaurantAddress,
-                    customerAddress: row.customerAddress,
-                    customerPhone: row.customerPhone,
+                    items: items,
+                    total: 0,
+                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
+                    restaurantAddress: "",
+                    customerAddress: "",
+                    customerPhone: "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
                 )
-                // Only track non-delivered orders (or recently delivered)
-                if order.status != .delivered {
-                    activeClientOrder = order
-                } else if activeClientOrder?.id == order.id {
-                    // Order just got delivered — show delivered state
-                    activeClientOrder = order
-                }
+                activeClientOrder = order
             } else {
                 activeClientOrder = nil
             }
