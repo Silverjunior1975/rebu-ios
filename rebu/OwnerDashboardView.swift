@@ -193,7 +193,7 @@ struct OwnerDashboardView: View {
             deliveredOrders = try await supabaseClient
                 .from("orders")
                 .select()
-                .eq("status", value: "DELIVERED")
+                .eq("status", value: OrderStatus.delivered.rawValue)
                 .execute()
                 .value
         } catch {
