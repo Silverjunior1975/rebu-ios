@@ -352,18 +352,8 @@ struct RestaurantMenuView: View {
         }
         let orderItems = menuQuantities.map { (menuItemId: $0.key, quantity: $0.value) }
 
-        // Use a persistent device UUID as customer_id (no auth login in app)
-        let storedId = UserDefaults.standard.string(forKey: "customerId")
-        let customerId: UUID
-        if let existing = storedId, let uuid = UUID(uuidString: existing) {
-            customerId = uuid
-        } else {
-            customerId = UUID()
-            UserDefaults.standard.set(customerId.uuidString, forKey: "customerId")
-        }
-
         let success = await orderStore.placeOrder(
-            customerId: customerId,
+            customerId: nil,
             restaurantId: restaurantId,
             deliveryAddress: finalAddress,
             items: orderItems

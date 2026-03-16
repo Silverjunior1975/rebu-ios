@@ -70,7 +70,6 @@ struct ClientView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.15, longitudeDelta: 0.15)
         )
     )
-    @State private var showOrderConfirmation: Bool = false
     @State private var orderPlacedThisSession: Bool = false
 
     private let orderRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
@@ -178,7 +177,7 @@ struct ClientView: View {
                     onOrderPlaced: {
                         selectedRestaurant = nil
                         orderPlacedThisSession = true
-                        Task { await fetchActiveOrder() }
+                        Task { await refreshActiveOrder() }
                     }
                 )
             }
@@ -280,15 +279,8 @@ struct ClientView: View {
         }
         .onReceive(orderRefreshTimer) { _ in
             if orderPlacedThisSession, activeClientOrder != nil {
-                Task { await fetchActiveOrder() }
+                Task { await refreshActiveOrder() }
             }
-        }
-        .alert("Order Placed!", isPresented: $showOrderConfirmation) {
-            Button("OK", role: .cancel) {
-                Task { await fetchActiveOrder() }
-            }
-        } message: {
-            Text("The restaurant is preparing your order.")
         }
     }
 
@@ -347,9 +339,9 @@ struct ClientView: View {
         }
     }
 
-    // MARK: - Fetch Active Order for This Client
+    // MARK: - Refresh Active Order (only called after placing an order this session)
 
-    private func fetchActiveOrder() async {
+    private func refreshActiveOrder() async {
         do {
             let rows: [OrderRow] = try await supabaseClient
                 .from("orders")
