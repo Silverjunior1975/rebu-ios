@@ -52,6 +52,7 @@ struct ClientView: View {
 
     @ObservedObject var orderStore: OrderStore
     @StateObject private var locationHelper = LocationHelper()
+    @Environment(\.scenePhase) private var scenePhase
 
     // ===== ACCOUNT (PERSISTENT — collected at order time, not at launch) =====
     @State private var firstName: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
@@ -280,6 +281,12 @@ struct ClientView: View {
         .onReceive(orderRefreshTimer) { _ in
             if orderPlacedThisSession, activeClientOrder != nil {
                 Task { await refreshActiveOrder() }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                orderPlacedThisSession = false
+                activeClientOrder = nil
             }
         }
     }
