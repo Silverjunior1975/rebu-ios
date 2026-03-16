@@ -367,7 +367,41 @@ struct ClientView: View {
                 .value
 
             if let row = rows.first {
-                // Fetch order items for this order
+                // Fetch menu item prices for lookup
+                var menuItemPrices: [Int: (name: String, price: Double)] = [:]
+                do {
+                    let allMenuItems: [MenuItemRow] = try await supabaseClient
+                        .from("menu_items")
+                        .select()
+                        .execute()
+                        .value
+                    for mi in allMenuItems {
+                        menuItemPrices[mi.id] = (name: mi.name, price: mi.price)
+                    }
+                } catch {
+                    print("Error fetching menu items: \(error)")
+                }
+
+                // Fetch restaurant name
+                var restaurantName = "Restaurant #\(row.restaurantId ?? 0)"
+                if let rId = row.restaurantId {
+                    do {
+                        let rRows: [RestaurantRow] = try await supabaseClient
+                            .from("restaurants")
+                            .select()
+                            .eq("id", value: rId)
+                            .limit(1)
+                            .execute()
+                            .value
+                        if let r = rRows.first {
+                            restaurantName = r.name
+                        }
+                    } catch {
+                        print("Error fetching restaurant name: \(error)")
+                    }
+                }
+
+                // Fetch order items
                 var items: [OrderItem] = []
                 do {
                     let itemRows: [OrderItemRow] = try await supabaseClient
@@ -377,17 +411,25 @@ struct ClientView: View {
                         .execute()
                         .value
                     items = itemRows.map { item in
-                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                        let menuId = item.menuItemId ?? 0
+                        let info = menuItemPrices[menuId]
+                        return OrderItem(
+                            name: info?.name ?? "Item #\(menuId)",
+                            quantity: item.quantity,
+                            price: info?.price ?? 0
+                        )
                     }
                 } catch {
                     print("Error fetching order items: \(error)")
                 }
 
+                let itemsTotal = items.reduce(0) { $0 + Double($1.quantity) * $1.price }
+
                 let order = Order(
                     id: row.id,
                     items: items,
-                    total: 0,
-                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
+                    total: itemsTotal,
+                    restaurantName: restaurantName,
                     restaurantAddress: "",
                     customerAddress: row.deliveryAddress ?? "",
                     customerPhone: "",
