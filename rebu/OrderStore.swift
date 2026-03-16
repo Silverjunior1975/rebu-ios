@@ -53,7 +53,7 @@ class OrderStore: ObservableObject {
                     total: 0,
                     restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
                     restaurantAddress: "",
-                    customerAddress: "",
+                    customerAddress: row.deliveryAddress ?? "",
                     customerPhone: "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
@@ -72,6 +72,7 @@ class OrderStore: ObservableObject {
     func placeOrder(
         customerId: UUID?,
         restaurantId: Int,
+        deliveryAddress: String?,
         items: [(menuItemId: Int, quantity: Int)]
     ) async -> Bool {
         do {
@@ -79,7 +80,8 @@ class OrderStore: ObservableObject {
             let orderInsert = OrderInsert(
                 customerId: customerId,
                 restaurantId: restaurantId,
-                status: OrderStatus.new.rawValue
+                status: OrderStatus.new.rawValue,
+                deliveryAddress: deliveryAddress
             )
 
             let createdOrder: OrderRow = try await supabaseClient

@@ -4,17 +4,17 @@ import Foundation
 
 enum OrderStatus: String {
 
-    case new = "NEW"
+    case new = "new"
 
-    case accepted = "ACCEPTED"
+    case accepted = "accepted"
 
-    case ready = "READY"
+    case ready = "ready"
 
-    case acceptedByDriver = "ACCEPTED_BY_DRIVER"
+    case acceptedByDriver = "accepted_by_driver"
 
-    case pickedUp = "PICKED_UP"
+    case pickedUp = "picked_up"
 
-    case delivered = "DELIVERED"
+    case delivered = "delivered"
 
 }
 

@@ -355,6 +355,7 @@ struct RestaurantMenuView: View {
         let success = await orderStore.placeOrder(
             customerId: nil,
             restaurantId: restaurantId,
+            deliveryAddress: finalAddress,
             items: orderItems
         )
 
