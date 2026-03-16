@@ -241,14 +241,10 @@ struct ClientView: View {
                                         }
                                         Spacer()
                                         let dist = estimatedDistance(for: restaurant)
-                                        if dist <= DeliveryPricing.maxServiceDistanceMiles {
+                                        if dist > 0 {
                                             Text(String(format: "%.1f mi", dist))
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
-                                        } else {
-                                            Text("Too far")
-                                                .font(.caption)
-                                                .foregroundColor(.red)
                                         }
                                         Image(systemName: "chevron.right")
                                             .foregroundColor(.gray)
