@@ -43,15 +43,12 @@ struct MenuItemRow: Codable, Identifiable, Sendable {
 struct OrderInsert: Codable, Sendable {
     let customerId: UUID?
     let restaurantId: Int
-    let menuId: Int
-    let quantity: Int
     let status: String
 
     enum CodingKeys: String, CodingKey {
         case customerId = "customer_id"
         case restaurantId = "restaurant_id"
-        case menuId = "menu_id"
-        case quantity, status
+        case status
     }
 }
 
@@ -62,8 +59,6 @@ struct OrderRow: Codable, Identifiable, Sendable {
     let customerId: UUID?
     let restaurantId: Int?
     let driverId: UUID?
-    let menuId: Int?
-    let quantity: Int?
     let status: String
 
     enum CodingKeys: String, CodingKey {
@@ -71,8 +66,37 @@ struct OrderRow: Codable, Identifiable, Sendable {
         case customerId = "customer_id"
         case restaurantId = "restaurant_id"
         case driverId = "driver_id"
-        case menuId = "menu_id"
-        case quantity, status
+        case status
+    }
+}
+
+// MARK: - Order Item (insert into "order_items" table)
+
+struct OrderItemInsert: Codable, Sendable {
+    let orderId: Int
+    let menuItemId: Int
+    let quantity: Int
+
+    enum CodingKeys: String, CodingKey {
+        case orderId = "order_id"
+        case menuItemId = "menu_item_id"
+        case quantity
+    }
+}
+
+// MARK: - Order Item (read from "order_items" table)
+
+struct OrderItemRow: Codable, Identifiable, Sendable {
+    let id: Int
+    let orderId: Int?
+    let menuItemId: Int?
+    let quantity: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case orderId = "order_id"
+        case menuItemId = "menu_item_id"
+        case quantity
     }
 }
 

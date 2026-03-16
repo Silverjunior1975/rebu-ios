@@ -29,29 +29,36 @@ class OrderStore: ObservableObject {
                 .execute()
                 .value
 
-            // Group order rows by restaurant_id + customer_id + status to form logical orders
-            // Each row is one menu item; group them into Order objects
-            var grouped: [String: [OrderRow]] = [:]
+            // For each order row, fetch its order_items
+            var fetchedOrders: [Order] = []
             for row in rows {
-                let key = "\(row.restaurantId ?? 0)-\(row.customerId?.uuidString ?? "nil")-\(row.status)"
-                grouped[key, default: []].append(row)
-            }
+                var items: [OrderItem] = []
+                do {
+                    let itemRows: [OrderItemRow] = try await supabaseClient
+                        .from("order_items")
+                        .select()
+                        .eq("order_id", value: row.id)
+                        .execute()
+                        .value
+                    items = itemRows.map { item in
+                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                    }
+                } catch {
+                    print("Error fetching order items for order \(row.id): \(error)")
+                }
 
-            let fetchedOrders = grouped.values.compactMap { group -> Order? in
-                guard let first = group.first else { return nil }
-                return Order(
-                    id: first.id,
-                    items: group.map { row in
-                        OrderItem(name: "Item #\(row.menuId ?? 0)", quantity: row.quantity ?? 1, price: 0)
-                    },
+                let order = Order(
+                    id: row.id,
+                    items: items,
                     total: 0,
-                    restaurantName: "Restaurant #\(first.restaurantId ?? 0)",
+                    restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
                     restaurantAddress: "",
                     customerAddress: "",
                     customerPhone: "",
-                    status: OrderStatus(rawValue: first.status) ?? .new,
-                    driverId: first.driverId
+                    status: OrderStatus(rawValue: row.status) ?? .new,
+                    driverId: row.driverId
                 )
+                fetchedOrders.append(order)
             }
 
             self.orders = fetchedOrders
@@ -60,27 +67,41 @@ class OrderStore: ObservableObject {
         }
     }
 
-    // MARK: - Place Order (insert into orders table)
+    // MARK: - Place Order (insert into orders + order_items)
 
     func placeOrder(
         customerId: UUID?,
         restaurantId: Int,
-        items: [(menuId: Int, quantity: Int)]
+        items: [(menuItemId: Int, quantity: Int)]
     ) async -> Bool {
-        let orderInserts = items.map { item in
-            OrderInsert(
+        do {
+            // Step 1: Insert order row and get back the created order
+            let orderInsert = OrderInsert(
                 customerId: customerId,
                 restaurantId: restaurantId,
-                menuId: item.menuId,
-                quantity: item.quantity,
                 status: OrderStatus.new.rawValue
             )
-        }
 
-        do {
-            try await supabaseClient
+            let createdOrder: OrderRow = try await supabaseClient
                 .from("orders")
-                .insert(orderInserts)
+                .insert(orderInsert)
+                .select()
+                .single()
+                .execute()
+                .value
+
+            // Step 2: Insert order items with the created order's id
+            let orderItems = items.map { item in
+                OrderItemInsert(
+                    orderId: createdOrder.id,
+                    menuItemId: item.menuItemId,
+                    quantity: item.quantity
+                )
+            }
+
+            try await supabaseClient
+                .from("order_items")
+                .insert(orderItems)
                 .execute()
 
             await fetchOrders()

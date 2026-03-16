@@ -369,9 +369,25 @@ struct ClientView: View {
                 .value
 
             if let row = rows.first {
+                // Fetch order items for this order
+                var items: [OrderItem] = []
+                do {
+                    let itemRows: [OrderItemRow] = try await supabaseClient
+                        .from("order_items")
+                        .select()
+                        .eq("order_id", value: row.id)
+                        .execute()
+                        .value
+                    items = itemRows.map { item in
+                        OrderItem(name: "Item #\(item.menuItemId ?? 0)", quantity: item.quantity, price: 0)
+                    }
+                } catch {
+                    print("Error fetching order items: \(error)")
+                }
+
                 let order = Order(
                     id: row.id,
-                    items: [OrderItem(name: "Item #\(row.menuId ?? 0)", quantity: row.quantity ?? 1, price: 0)],
+                    items: items,
                     total: 0,
                     restaurantName: "Restaurant #\(row.restaurantId ?? 0)",
                     restaurantAddress: "",

@@ -343,14 +343,14 @@ struct RestaurantMenuView: View {
         }
 
         // Step 2: Place order in Supabase
-        // Aggregate cart by menu_id
+        // Aggregate cart by menu_item_id
         var menuQuantities: [Int: Int] = [:]
         for product in cart {
             if let menuId = menuIdMap[product.id] {
                 menuQuantities[menuId, default: 0] += 1
             }
         }
-        let orderItems = menuQuantities.map { (menuId: $0.key, quantity: $0.value) }
+        let orderItems = menuQuantities.map { (menuItemId: $0.key, quantity: $0.value) }
 
         let success = await orderStore.placeOrder(
             customerId: nil,
