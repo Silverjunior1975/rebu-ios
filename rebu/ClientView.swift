@@ -71,6 +71,7 @@ struct ClientView: View {
         )
     )
     @State private var showOrderConfirmation: Bool = false
+    @State private var orderPlacedThisSession: Bool = false
 
     private let orderRefreshTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
@@ -86,7 +87,7 @@ struct ClientView: View {
         VStack(spacing: 0) {
 
             // ===== ACTIVE ORDER TRACKING =====
-            if let order = activeClientOrder {
+            if orderPlacedThisSession, let order = activeClientOrder {
                 VStack(spacing: 16) {
                     Spacer()
 
@@ -133,6 +134,7 @@ struct ClientView: View {
                     if order.status == .delivered {
                         Button("Done") {
                             activeClientOrder = nil
+                            orderPlacedThisSession = false
                         }
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)
@@ -175,6 +177,7 @@ struct ClientView: View {
                     distanceMiles: estimatedDistance(for: restaurant),
                     onOrderPlaced: {
                         selectedRestaurant = nil
+                        orderPlacedThisSession = true
                         Task { await fetchActiveOrder() }
                     }
                 )
@@ -268,7 +271,6 @@ struct ClientView: View {
         }
         .task {
             await fetchRestaurants()
-            await fetchActiveOrder()
         }
         .onChange(of: locationHelper.userLocation) { _, newLocation in
             if let loc = newLocation {
@@ -281,7 +283,7 @@ struct ClientView: View {
             }
         }
         .onReceive(orderRefreshTimer) { _ in
-            if activeClientOrder != nil {
+            if orderPlacedThisSession, activeClientOrder != nil {
                 Task { await fetchActiveOrder() }
             }
         }
