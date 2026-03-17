@@ -44,6 +44,8 @@ struct OrderInsert: Codable, Sendable {
     let restaurantId: Int
     let status: String
     let itemsTotal: Double
+    let deliveryFee: Double
+    let total: Double
     let customerName: String?
     let address: String?
     let phone: String?
@@ -52,6 +54,8 @@ struct OrderInsert: Codable, Sendable {
         case restaurantId = "restaurant_id"
         case status
         case itemsTotal = "items_total"
+        case deliveryFee = "delivery_fee"
+        case total
         case customerName = "customer_name"
         case address
         case phone
@@ -66,6 +70,8 @@ struct OrderRow: Codable, Identifiable, Sendable {
     let driverId: UUID?
     let status: String
     let itemsTotal: Double?
+    let deliveryFee: Double?
+    let total: Double?
     let customerName: String?
     let address: String?
     let phone: String?
@@ -76,6 +82,8 @@ struct OrderRow: Codable, Identifiable, Sendable {
         case driverId = "driver_id"
         case status
         case itemsTotal = "items_total"
+        case deliveryFee = "delivery_fee"
+        case total
         case customerName = "customer_name"
         case address
         case phone

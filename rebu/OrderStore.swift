@@ -113,18 +113,23 @@ class OrderStore: ObservableObject {
         customerName: String,
         address: String,
         phone: String,
+        distanceMiles: Double,
         items: [(productId: Int, quantity: Int, price: Double)]
     ) async -> Bool {
         do {
             // Calculate items_total from cart
             let itemsTotal = items.reduce(0.0) { $0 + $1.price * Double($1.quantity) }
-            print("PLACING ORDER: restaurant=\(restaurantId), items_total=\(itemsTotal), items=\(items.count)")
+            let deliveryFee = DeliveryPricing.deliveryFee(distanceMiles: distanceMiles)
+            let total = itemsTotal + deliveryFee
+            print("PLACING ORDER: restaurant=\(restaurantId), items_total=\(itemsTotal), delivery_fee=\(deliveryFee), total=\(total), items=\(items.count)")
 
             // Step 1: Insert order row and get back the created order
             let orderInsert = OrderInsert(
                 restaurantId: restaurantId,
                 status: OrderStatus.new.rawValue,
                 itemsTotal: itemsTotal,
+                deliveryFee: deliveryFee,
+                total: total,
                 customerName: customerName,
                 address: address,
                 phone: phone

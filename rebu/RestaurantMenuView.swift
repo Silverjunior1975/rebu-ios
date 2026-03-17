@@ -369,6 +369,7 @@ struct RestaurantMenuView: View {
             customerName: finalName,
             address: finalAddress,
             phone: finalPhone,
+            distanceMiles: distanceMiles,
             items: orderItems
         )
 
