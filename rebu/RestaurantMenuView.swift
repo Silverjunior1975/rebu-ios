@@ -174,8 +174,13 @@ struct RestaurantMenuView: View {
 
                     if let error = paymentError {
                         Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .cornerRadius(10)
                     }
 
                     Button {
@@ -369,12 +374,13 @@ struct RestaurantMenuView: View {
 
         isPlacingOrder = false
 
-        if success {
-            cart = []
-            showOrderConfirmation = true
-        } else {
+        guard success else {
             paymentError = "Failed to place order. Please try again."
+            return
         }
+
+        cart = []
+        showOrderConfirmation = true
     }
 }
 
