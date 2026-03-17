@@ -16,7 +16,8 @@ struct RestaurantMenuView: View {
 
     @State private var menuItems: [Product] = []
     @State private var cart: [Product] = []
-    @State private var menuIdMap: [UUID: Int] = [:] // Product.id → menu_items.id
+    @State private var menuIdMap: [UUID: Int] = [:] // Product.id → menu_items.id (product_id)
+    @State private var menuPriceMap: [UUID: Double] = [:] // Product.id → menu_items.price
     @State private var isPlacingOrder: Bool = false
     @State private var showOrderConfirmation: Bool = false
     @State private var isLoading: Bool = true
@@ -285,6 +286,7 @@ struct RestaurantMenuView: View {
             menuItems = rows.map { row in
                 let product = Product(id: UUID(), name: row.name, price: row.price)
                 menuIdMap[product.id] = row.id
+                menuPriceMap[product.id] = row.price
                 return product
             }
             isLoading = false
@@ -348,19 +350,25 @@ struct RestaurantMenuView: View {
         }
 
         // Step 2: Place order in Supabase
-        // Aggregate cart by menu_item_id
-        var menuQuantities: [Int: Int] = [:]
+        // Aggregate cart by product_id with price
+        var productAgg: [Int: (quantity: Int, price: Double)] = [:]
         for product in cart {
-            if let menuId = menuIdMap[product.id] {
-                menuQuantities[menuId, default: 0] += 1
+            if let prodId = menuIdMap[product.id] {
+                let price = menuPriceMap[product.id] ?? product.price
+                if let existing = productAgg[prodId] {
+                    productAgg[prodId] = (existing.quantity + 1, price)
+                } else {
+                    productAgg[prodId] = (1, price)
+                }
             }
         }
-        let orderItems = menuQuantities.map { (menuItemId: $0.key, quantity: $0.value) }
+        let orderItems = productAgg.map { (productId: $0.key, quantity: $0.value.quantity, price: $0.value.price) }
 
         let success = await orderStore.placeOrder(
-            customerId: nil,
             restaurantId: restaurantId,
-            deliveryAddress: finalAddress,
+            customerName: finalName,
+            address: finalAddress,
+            phone: finalPhone,
             items: orderItems
         )
 

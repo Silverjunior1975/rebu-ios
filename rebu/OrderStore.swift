@@ -71,19 +71,19 @@ class OrderStore: ObservableObject {
                         .execute()
                         .value
                     items = itemRows.map { item in
-                        let menuId = item.menuItemId ?? 0
-                        let info = menuItemPrices[menuId]
+                        let prodId = item.productId ?? 0
+                        let info = menuItemPrices[prodId]
                         return OrderItem(
-                            name: info?.name ?? "Item #\(menuId)",
+                            name: info?.name ?? "Item #\(prodId)",
                             quantity: item.quantity,
-                            price: info?.price ?? 0
+                            price: item.price ?? info?.price ?? 0
                         )
                     }
                 } catch {
                     print("Error fetching order items for order \(row.id): \(error)")
                 }
 
-                let itemsTotal = items.reduce(0) { $0 + Double($1.quantity) * $1.price }
+                let itemsTotal = row.itemsTotal ?? items.reduce(0) { $0 + Double($1.quantity) * $1.price }
                 let rName = restaurantNames[row.restaurantId ?? 0] ?? "Restaurant #\(row.restaurantId ?? 0)"
 
                 let order = Order(
@@ -92,8 +92,8 @@ class OrderStore: ObservableObject {
                     total: itemsTotal,
                     restaurantName: rName,
                     restaurantAddress: "",
-                    customerAddress: row.deliveryAddress ?? "",
-                    customerPhone: "",
+                    customerAddress: row.address ?? "",
+                    customerPhone: row.phone ?? "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
                 )
@@ -109,18 +109,25 @@ class OrderStore: ObservableObject {
     // MARK: - Place Order (insert into orders + order_items)
 
     func placeOrder(
-        customerId: UUID?,
         restaurantId: Int,
-        deliveryAddress: String?,
-        items: [(menuItemId: Int, quantity: Int)]
+        customerName: String,
+        address: String,
+        phone: String,
+        items: [(productId: Int, quantity: Int, price: Double)]
     ) async -> Bool {
         do {
+            // Calculate items_total from cart
+            let itemsTotal = items.reduce(0.0) { $0 + $1.price * Double($1.quantity) }
+            print("PLACING ORDER: restaurant=\(restaurantId), items_total=\(itemsTotal), items=\(items.count)")
+
             // Step 1: Insert order row and get back the created order
             let orderInsert = OrderInsert(
-                customerId: customerId,
                 restaurantId: restaurantId,
                 status: OrderStatus.new.rawValue,
-                deliveryAddress: deliveryAddress
+                itemsTotal: itemsTotal,
+                customerName: customerName,
+                address: address,
+                phone: phone
             )
 
             let createdOrder: OrderRow = try await supabaseClient
@@ -131,12 +138,15 @@ class OrderStore: ObservableObject {
                 .execute()
                 .value
 
+            print("ORDER CREATED: id=\(createdOrder.id)")
+
             // Step 2: Insert order items with the created order's id
             let orderItems = items.map { item in
                 OrderItemInsert(
                     orderId: createdOrder.id,
-                    menuItemId: item.menuItemId,
-                    quantity: item.quantity
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    price: item.price
                 )
             }
 
@@ -144,6 +154,8 @@ class OrderStore: ObservableObject {
                 .from("order_items")
                 .insert(orderItems)
                 .execute()
+
+            print("ORDER ITEMS INSERTED: \(orderItems.count) items for order \(createdOrder.id)")
 
             await fetchOrders()
             return true

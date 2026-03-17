@@ -410,12 +410,12 @@ struct ClientView: View {
                         .execute()
                         .value
                     items = itemRows.map { item in
-                        let menuId = item.menuItemId ?? 0
-                        let info = menuItemPrices[menuId]
+                        let prodId = item.productId ?? 0
+                        let info = menuItemPrices[prodId]
                         return OrderItem(
-                            name: info?.name ?? "Item #\(menuId)",
+                            name: info?.name ?? "Item #\(prodId)",
                             quantity: item.quantity,
-                            price: info?.price ?? 0
+                            price: item.price ?? info?.price ?? 0
                         )
                     }
                 } catch {
@@ -427,11 +427,11 @@ struct ClientView: View {
                 let order = Order(
                     id: row.id,
                     items: items,
-                    total: itemsTotal,
+                    total: row.itemsTotal ?? itemsTotal,
                     restaurantName: restaurantName,
                     restaurantAddress: "",
-                    customerAddress: row.deliveryAddress ?? "",
-                    customerPhone: "",
+                    customerAddress: row.address ?? "",
+                    customerPhone: row.phone ?? "",
                     status: OrderStatus(rawValue: row.status) ?? .new,
                     driverId: row.driverId
                 )
