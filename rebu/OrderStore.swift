@@ -171,7 +171,9 @@ class OrderStore: ObservableObject {
 
     // MARK: - Accept Order (assign driver)
 
-    func acceptOrder(orderID: Int, driverID: UUID) async {
+    func acceptOrder(orderID: Int, driverID: UUID) async -> Bool {
+        print("ACCEPT DELIVERY TAPPED")
+        print("UPDATING ORDER: \(orderID) with driver: \(driverID)")
         do {
             try await supabaseClient
                 .from("orders")
@@ -182,9 +184,12 @@ class OrderStore: ObservableObject {
                 .eq("id", value: orderID)
                 .execute()
 
+            print("ORDER \(orderID) ACCEPTED SUCCESSFULLY")
             await fetchOrders()
+            return true
         } catch {
-            print("Error accepting order: \(error)")
+            print("ERROR ACCEPTING ORDER \(orderID): \(error)")
+            return false
         }
     }
 

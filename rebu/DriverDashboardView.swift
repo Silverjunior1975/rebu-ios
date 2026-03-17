@@ -11,6 +11,7 @@ struct DriverDashboardView: View {
     @State private var showCashOut: Bool = false
     @State private var cashOutSuccess: Bool = false
     @State private var cashOutError: String?
+    @State private var acceptError: String?
     @StateObject private var paymentManager = PaymentManager()
     @StateObject private var locationHelper = LocationHelper()
     @State private var cameraPosition: MapCameraPosition = .region(
@@ -316,9 +317,25 @@ struct DriverDashboardView: View {
             }
 
             // Before accepting: driver does NOT see customer address
+            if let error = acceptError {
+                Text(error)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red)
+                    .cornerRadius(10)
+            }
+
             Button {
+                print("ACCEPT DELIVERY TAPPED for order \(order.id)")
                 Task {
-                    await orderStore.acceptOrder(orderID: order.id, driverID: driverId)
+                    acceptError = nil
+                    let success = await orderStore.acceptOrder(orderID: order.id, driverID: driverId)
+                    if !success {
+                        acceptError = "Failed to accept delivery. Please try again."
+                    }
                 }
             } label: {
                 Text("Accept Delivery")
