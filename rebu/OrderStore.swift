@@ -3,6 +3,29 @@ import Combine
 import UIKit
 import Supabase
 
+// Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
+private struct FullOrderInsert: Codable, Sendable {
+    let restaurantId: Int
+    let status: String
+    let itemsTotal: Double
+    let deliveryFee: Double
+    let total: Double
+    let customerName: String?
+    let address: String?
+    let phone: String?
+
+    enum CodingKeys: String, CodingKey {
+        case restaurantId = "restaurant_id"
+        case status
+        case itemsTotal = "items_total"
+        case deliveryFee = "delivery_fee"
+        case total
+        case customerName = "customer_name"
+        case address
+        case phone
+    }
+}
+
 class OrderStore: ObservableObject {
 
     @Published var orders: [Order] = []
@@ -124,7 +147,7 @@ class OrderStore: ObservableObject {
             print("PLACING ORDER: restaurant=\(restaurantId), items_total=\(itemsTotal), delivery_fee=\(deliveryFee), total=\(total), items=\(items.count)")
 
             // Step 1: Insert order row and get back the created order
-            let orderInsert = OrderInsert(
+            let orderInsert = FullOrderInsert(
                 restaurantId: restaurantId,
                 status: OrderStatus.new.rawValue,
                 itemsTotal: itemsTotal,
