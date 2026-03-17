@@ -329,8 +329,10 @@ struct DriverDashboardView: View {
             }
 
             Button {
+                print("BUTTON TAPPED")
                 print("ACCEPT DELIVERY TAPPED for order \(order.id)")
                 Task {
+                    print("ACCEPT ORDER FUNCTION CALLED for order \(order.id)")
                     acceptError = nil
                     let success = await orderStore.acceptOrder(orderID: order.id, driverID: driverId)
                     if !success {
@@ -345,11 +347,14 @@ struct DriverDashboardView: View {
                     .background(Color.green)
                     .foregroundColor(.white)
                     .cornerRadius(12)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
         }
         .padding()
         .background(Color.gray.opacity(0.06))
         .cornerRadius(14)
+        .contentShape(Rectangle())
     }
 
     // MARK: - Active Order Card
