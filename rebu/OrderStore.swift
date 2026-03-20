@@ -8,6 +8,23 @@ private struct InsertedOrderID: Decodable, Sendable {
     let id: Int
 }
 
+// Local order_items insert struct matching exact Supabase column names
+private struct OrderItemPayload: Codable, Sendable {
+    let orderId: Int
+    let menuId: Int
+    let quantity: Int
+    let priceEach: Double
+    let totalPrice: Double
+
+    enum CodingKeys: String, CodingKey {
+        case orderId = "order_id"
+        case menuId = "menu_id"
+        case quantity
+        case priceEach = "price_each"
+        case totalPrice = "total_price"
+    }
+}
+
 // Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
 private struct FullOrderInsert: Codable, Sendable {
     let restaurantId: Int
@@ -218,16 +235,18 @@ class OrderStore: ObservableObject {
             return false
         }
 
-        // Step 2: Insert order items
+        // Step 2: Insert order items using exact Supabase column names
         do {
             let orderItems = items.map { item in
-                OrderItemInsert(
+                OrderItemPayload(
                     orderId: orderId,
-                    productId: item.productId,
+                    menuId: item.productId,
                     quantity: item.quantity,
-                    price: item.price
+                    priceEach: item.price,
+                    totalPrice: item.price * Double(item.quantity)
                 )
             }
+            print("REBU ORDER ITEMS PAYLOAD: \(orderItems)")
             print("REBU: Inserting \(orderItems.count) items for order \(orderId)...")
             try await supabaseClient
                 .from("order_items")
