@@ -177,25 +177,43 @@ class OrderStore: ObservableObject {
         }
 
         // Step 1: Insert into orders table
+        // Use plain execute() + JSONSerialization to avoid Codable decode issues
         let orderId: Int
         do {
             print("REBU: Inserting into orders table...")
-            let insertedOrder: InsertedOrderID = try await supabaseClient
+            let response = try await supabaseClient
                 .from("orders")
                 .insert(orderInsert)
                 .select("id")
                 .single()
                 .execute()
-                .value
-            orderId = insertedOrder.id
+            print("REBU: Insert response status=\(response.status)")
+            print("REBU: Insert response data=\(String(data: response.data, encoding: .utf8) ?? "nil")")
+
+            // Parse the order ID from raw JSON (avoids Codable decode mismatch)
+            guard let json = try JSONSerialization.jsonObject(with: response.data) as? [String: Any],
+                  let rawId = json["id"] else {
+                print("REBU ERROR: Could not parse order ID from response")
+                return false
+            }
+
+            // Handle id as Int or Int64
+            if let intId = rawId as? Int {
+                orderId = intId
+            } else if let intId = rawId as? Int64 {
+                orderId = Int(intId)
+            } else if let doubleId = rawId as? Double {
+                orderId = Int(doubleId)
+            } else {
+                print("REBU ERROR: order id is unexpected type: \(type(of: rawId)) = \(rawId)")
+                return false
+            }
             print("REBU ORDER CREATED: id=\(orderId)")
         } catch {
             print("REBU ERROR inserting order: \(error)")
             print("REBU ERROR type: \(type(of: error))")
             print("REBU ERROR localized: \(error.localizedDescription)")
-            if let desc = String(describing: error).components(separatedBy: "message:").last {
-                print("REBU SUPABASE MESSAGE: \(desc)")
-            }
+            print("REBU ERROR full: \(String(describing: error))")
             print("=== REBU PLACE ORDER FAILED (order insert) ===")
             return false
         }
