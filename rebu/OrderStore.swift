@@ -8,6 +8,23 @@ private struct InsertedOrderID: Decodable, Sendable {
     let id: Int
 }
 
+// Local order_items insert struct matching exact Supabase column names
+private struct OrderItemPayload: Codable, Sendable {
+    let orderId: Int
+    let menuId: Int
+    let quantity: Int
+    let priceEach: Double
+    let totalPrice: Double
+
+    enum CodingKeys: String, CodingKey {
+        case orderId = "order_id"
+        case menuId = "menu_id"
+        case quantity
+        case priceEach = "price_each"
+        case totalPrice = "total_price"
+    }
+}
+
 // Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
 private struct FullOrderInsert: Codable, Sendable {
     let restaurantId: Int
@@ -177,39 +194,59 @@ class OrderStore: ObservableObject {
         }
 
         // Step 1: Insert into orders table
+        // Use plain execute() + JSONSerialization to avoid Codable decode issues
         let orderId: Int
         do {
             print("REBU: Inserting into orders table...")
-            let insertedOrder: InsertedOrderID = try await supabaseClient
+            let response = try await supabaseClient
                 .from("orders")
                 .insert(orderInsert)
                 .select("id")
                 .single()
                 .execute()
-                .value
-            orderId = insertedOrder.id
+            print("REBU: Insert response status=\(response.status)")
+            print("REBU: Insert response data=\(String(data: response.data, encoding: .utf8) ?? "nil")")
+
+            // Parse the order ID from raw JSON (avoids Codable decode mismatch)
+            guard let json = try JSONSerialization.jsonObject(with: response.data) as? [String: Any],
+                  let rawId = json["id"] else {
+                print("REBU ERROR: Could not parse order ID from response")
+                return false
+            }
+
+            // Handle id as Int or Int64
+            if let intId = rawId as? Int {
+                orderId = intId
+            } else if let intId = rawId as? Int64 {
+                orderId = Int(intId)
+            } else if let doubleId = rawId as? Double {
+                orderId = Int(doubleId)
+            } else {
+                print("REBU ERROR: order id is unexpected type: \(type(of: rawId)) = \(rawId)")
+                return false
+            }
             print("REBU ORDER CREATED: id=\(orderId)")
         } catch {
             print("REBU ERROR inserting order: \(error)")
             print("REBU ERROR type: \(type(of: error))")
             print("REBU ERROR localized: \(error.localizedDescription)")
-            if let desc = String(describing: error).components(separatedBy: "message:").last {
-                print("REBU SUPABASE MESSAGE: \(desc)")
-            }
+            print("REBU ERROR full: \(String(describing: error))")
             print("=== REBU PLACE ORDER FAILED (order insert) ===")
             return false
         }
 
-        // Step 2: Insert order items
+        // Step 2: Insert order items using exact Supabase column names
         do {
             let orderItems = items.map { item in
-                OrderItemInsert(
+                OrderItemPayload(
                     orderId: orderId,
-                    productId: item.productId,
+                    menuId: item.productId,
                     quantity: item.quantity,
-                    price: item.price
+                    priceEach: item.price,
+                    totalPrice: item.price * Double(item.quantity)
                 )
             }
+            print("REBU ORDER ITEMS PAYLOAD: \(orderItems)")
             print("REBU: Inserting \(orderItems.count) items for order \(orderId)...")
             try await supabaseClient
                 .from("order_items")
