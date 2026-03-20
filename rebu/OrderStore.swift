@@ -11,24 +11,22 @@ private struct InsertedOrderID: Decodable, Sendable {
 // Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
 private struct FullOrderInsert: Codable, Sendable {
     let restaurantId: Int
-    let customerUuid: String?
     let status: String
     let itemsTotal: Double
     let deliveryFee: Double
     let totalPrice: Double
     let customerName: String?
-    let address: String?
+    let deliveryAddress: String?
     let phone: String?
 
     enum CodingKeys: String, CodingKey {
         case restaurantId = "restaurant_id"
-        case customerUuid = "customer_uuid"
         case status
         case itemsTotal = "items_total"
         case deliveryFee = "delivery_fee"
         case totalPrice = "total_price"
         case customerName = "customer_name"
-        case address
+        case deliveryAddress = "delivery_address"
         case phone
     }
 }
@@ -156,13 +154,12 @@ class OrderStore: ObservableObject {
             // Step 1: Insert order row and get back the created order
             let orderInsert = FullOrderInsert(
                 restaurantId: restaurantId,
-                customerUuid: nil,
                 status: OrderStatus.new.rawValue,
                 itemsTotal: itemsTotal,
                 deliveryFee: deliveryFee,
                 totalPrice: total,
                 customerName: customerName,
-                address: address,
+                deliveryAddress: address,
                 phone: phone
             )
 
