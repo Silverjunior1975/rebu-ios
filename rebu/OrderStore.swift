@@ -3,6 +3,11 @@ import Combine
 import UIKit
 import Supabase
 
+// Minimal struct to decode only the order ID from insert response
+private struct InsertedOrderID: Decodable, Sendable {
+    let id: Int
+}
+
 // Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
 private struct FullOrderInsert: Codable, Sendable {
     let restaurantId: Int
@@ -158,20 +163,22 @@ class OrderStore: ObservableObject {
                 phone: phone
             )
 
-            let createdOrder: OrderRow = try await supabaseClient
+            // Insert order and decode only the id (avoids OrderRow decode mismatch)
+            let insertedOrder: InsertedOrderID = try await supabaseClient
                 .from("orders")
                 .insert(orderInsert)
-                .select()
+                .select("id")
                 .single()
                 .execute()
                 .value
 
-            print("ORDER CREATED: id=\(createdOrder.id)")
+            let orderId = insertedOrder.id
+            print("ORDER CREATED: id=\(orderId)")
 
             // Step 2: Insert order items with the created order's id
             let orderItems = items.map { item in
                 OrderItemInsert(
-                    orderId: createdOrder.id,
+                    orderId: orderId,
                     productId: item.productId,
                     quantity: item.quantity,
                     price: item.price
@@ -183,12 +190,13 @@ class OrderStore: ObservableObject {
                 .insert(orderItems)
                 .execute()
 
-            print("ORDER ITEMS INSERTED: \(orderItems.count) items for order \(createdOrder.id)")
+            print("ORDER ITEMS INSERTED: \(orderItems.count) items for order \(orderId)")
 
             await fetchOrders()
             return true
         } catch {
-            print("Error placing order: \(error)")
+            print("ERROR PLACING ORDER: \(error)")
+            print("ERROR DETAILS: \(error.localizedDescription)")
             return false
         }
     }
