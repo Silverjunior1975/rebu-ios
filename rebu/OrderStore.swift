@@ -165,31 +165,32 @@ class OrderStore: ObservableObject {
     ) async -> Bool {
         print("=== REBU PLACE ORDER START ===")
 
-        // Get authenticated user ID for RLS (customer_id must match auth.uid())
+        // Get authenticated user ID for customer_id (non-fatal if unavailable)
         var userId: String?
         do {
             let session = try await supabaseClient.auth.session
             userId = session.user.id.uuidString
             print("REBU AUTH: user id = \(userId ?? "nil")")
         } catch {
-            print("REBU AUTH: No active session, trying anonymous sign-in...")
+            print("REBU AUTH: No active session (\(error.localizedDescription))")
+            // Try anonymous sign-in as fallback
             do {
                 let session = try await supabaseClient.auth.signInAnonymously()
                 userId = session.user.id.uuidString
                 print("REBU AUTH: anonymous user id = \(userId ?? "nil")")
             } catch {
-                print("REBU AUTH ERROR: \(error)")
-                print("REBU AUTH: Proceeding without user id")
+                print("REBU AUTH: Anonymous sign-in failed (\(error.localizedDescription))")
+                print("REBU AUTH: Proceeding without customer_id")
             }
         }
 
-        // Calculate items_total from cart
+        // Calculate totals
         let itemsTotal = items.reduce(0.0) { $0 + $1.price * Double($1.quantity) }
         let deliveryFee = DeliveryPricing.deliveryFee(distanceMiles: distanceMiles)
         let total = itemsTotal + deliveryFee
         print("REBU: restaurant=\(restaurantId), items_total=\(itemsTotal), delivery_fee=\(deliveryFee), total=\(total), items=\(items.count)")
 
-        // Build the insert payload (customer_id required for RLS)
+        // Build the insert payload
         let orderInsert = FullOrderInsert(
             customerId: userId,
             restaurantId: restaurantId,
@@ -202,83 +203,60 @@ class OrderStore: ObservableObject {
             phone: phone
         )
 
-        // Log the exact JSON being sent to Supabase
-        do {
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = .useDefaultKeys
-            let jsonData = try encoder.encode(orderInsert)
-            let jsonString = String(data: jsonData, encoding: .utf8) ?? "nil"
-            print("REBU INSERT JSON: \(jsonString)")
-        } catch {
-            print("REBU ERROR encoding insert: \(error)")
-            return false
-        }
-
-        // Step 1: Insert into orders table
-        // Use plain execute() + JSONSerialization to avoid Codable decode issues
-        let orderId: Int
+        // Step 1: Insert into orders table (plain execute — no response decoding)
         do {
             print("REBU: Inserting into orders table...")
-            let response = try await supabaseClient
+            try await supabaseClient
                 .from("orders")
                 .insert(orderInsert)
-                .select("id")
-                .single()
                 .execute()
-            print("REBU: Insert response status=\(response.status)")
-            print("REBU: Insert response data=\(String(data: response.data, encoding: .utf8) ?? "nil")")
-
-            // Parse the order ID from raw JSON (avoids Codable decode mismatch)
-            guard let json = try JSONSerialization.jsonObject(with: response.data) as? [String: Any],
-                  let rawId = json["id"] else {
-                print("REBU ERROR: Could not parse order ID from response")
-                return false
-            }
-
-            // Handle id as Int or Int64
-            if let intId = rawId as? Int {
-                orderId = intId
-            } else if let intId = rawId as? Int64 {
-                orderId = Int(intId)
-            } else if let doubleId = rawId as? Double {
-                orderId = Int(doubleId)
-            } else {
-                print("REBU ERROR: order id is unexpected type: \(type(of: rawId)) = \(rawId)")
-                return false
-            }
-            print("REBU ORDER CREATED: id=\(orderId)")
+            print("REBU: Order insert succeeded")
         } catch {
             print("REBU ERROR inserting order: \(error)")
-            print("REBU ERROR type: \(type(of: error))")
-            print("REBU ERROR localized: \(error.localizedDescription)")
             print("REBU ERROR full: \(String(describing: error))")
-            print("=== REBU PLACE ORDER FAILED (order insert) ===")
+            print("=== REBU PLACE ORDER FAILED ===")
             return false
         }
 
-        // Step 2: Insert order items using exact Supabase column names
+        // Step 2: Get the order ID we just created (query by unique fields)
+        var orderId: Int?
         do {
-            let orderItems = items.map { item in
-                OrderItemPayload(
-                    orderId: orderId,
-                    menuId: item.productId,
-                    quantity: item.quantity,
-                    priceEach: item.price,
-                    totalPrice: item.price * Double(item.quantity)
-                )
-            }
-            print("REBU ORDER ITEMS PAYLOAD: \(orderItems)")
-            print("REBU: Inserting \(orderItems.count) items for order \(orderId)...")
-            try await supabaseClient
-                .from("order_items")
-                .insert(orderItems)
+            let recentOrders: [InsertedOrderID] = try await supabaseClient
+                .from("orders")
+                .select("id")
+                .eq("restaurant_id", value: restaurantId)
+                .eq("phone", value: phone)
+                .order("id", ascending: false)
+                .limit(1)
                 .execute()
-            print("REBU ORDER ITEMS INSERTED: \(orderItems.count) items for order \(orderId)")
+                .value
+            orderId = recentOrders.first?.id
+            print("REBU ORDER ID: \(orderId ?? -1)")
         } catch {
-            print("REBU ERROR inserting order_items: \(error)")
-            print("REBU ERROR localized: \(error.localizedDescription)")
-            // Order was created but items failed — still return true so UI doesn't show false failure
-            print("=== REBU PLACE ORDER PARTIAL (order created, items failed) ===")
+            print("REBU: Could not fetch order ID: \(error.localizedDescription)")
+        }
+
+        // Step 3: Insert order items (only if we got the order ID)
+        if let orderId = orderId {
+            do {
+                let orderItems = items.map { item in
+                    OrderItemPayload(
+                        orderId: orderId,
+                        menuId: item.productId,
+                        quantity: item.quantity,
+                        priceEach: item.price,
+                        totalPrice: item.price * Double(item.quantity)
+                    )
+                }
+                print("REBU: Inserting \(orderItems.count) items for order \(orderId)...")
+                try await supabaseClient
+                    .from("order_items")
+                    .insert(orderItems)
+                    .execute()
+                print("REBU ORDER ITEMS INSERTED: \(orderItems.count) items")
+            } catch {
+                print("REBU ERROR inserting order_items: \(error.localizedDescription)")
+            }
         }
 
         await fetchOrders()
