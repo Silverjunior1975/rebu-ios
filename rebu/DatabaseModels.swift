@@ -41,19 +41,25 @@ struct MenuItemRow: Codable, Identifiable, Sendable {
 // MARK: - Order (insert into "orders" table)
 
 struct OrderInsert: Codable, Sendable {
+    let customerId: String?
     let restaurantId: Int
     let status: String
     let itemsTotal: Double
+    let deliveryFee: Double
+    let totalPrice: Double
     let customerName: String?
-    let address: String?
+    let deliveryAddress: String?
     let phone: String?
 
     enum CodingKeys: String, CodingKey {
+        case customerId = "customer_id"
         case restaurantId = "restaurant_id"
         case status
         case itemsTotal = "items_total"
+        case deliveryFee = "delivery_fee"
+        case totalPrice = "total_price"
         case customerName = "customer_name"
-        case address
+        case deliveryAddress = "delivery_address"
         case phone
     }
 }
@@ -62,22 +68,28 @@ struct OrderInsert: Codable, Sendable {
 
 struct OrderRow: Codable, Identifiable, Sendable {
     let id: Int
+    let customerId: String?
     let restaurantId: Int?
     let driverId: UUID?
     let status: String
     let itemsTotal: Double?
+    let deliveryFee: Double?
+    let totalPrice: Double?
     let customerName: String?
-    let address: String?
+    let deliveryAddress: String?
     let phone: String?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case customerId = "customer_id"
         case restaurantId = "restaurant_id"
         case driverId = "driver_id"
         case status
         case itemsTotal = "items_total"
+        case deliveryFee = "delivery_fee"
+        case totalPrice = "total_price"
         case customerName = "customer_name"
-        case address
+        case deliveryAddress = "delivery_address"
         case phone
     }
 }
@@ -86,15 +98,17 @@ struct OrderRow: Codable, Identifiable, Sendable {
 
 struct OrderItemInsert: Codable, Sendable {
     let orderId: Int
-    let productId: Int
+    let menuId: Int
     let quantity: Int
-    let price: Double
+    let priceEach: Double
+    let totalPrice: Double
 
     enum CodingKeys: String, CodingKey {
         case orderId = "order_id"
-        case productId = "product_id"
+        case menuId = "menu_id"
         case quantity
-        case price
+        case priceEach = "price_each"
+        case totalPrice = "total_price"
     }
 }
 
@@ -103,16 +117,18 @@ struct OrderItemInsert: Codable, Sendable {
 struct OrderItemRow: Codable, Identifiable, Sendable {
     let id: Int
     let orderId: Int?
-    let productId: Int?
+    let menuId: Int?
     let quantity: Int
-    let price: Double?
+    let priceEach: Double?
+    let totalPrice: Double?
 
     enum CodingKeys: String, CodingKey {
         case id
         case orderId = "order_id"
-        case productId = "product_id"
+        case menuId = "menu_id"
         case quantity
-        case price
+        case priceEach = "price_each"
+        case totalPrice = "total_price"
     }
 }
 
