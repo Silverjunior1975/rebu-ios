@@ -25,8 +25,9 @@ private struct OrderItemPayload: Codable, Sendable {
     }
 }
 
-// Local insert struct with delivery_fee and total (extends OrderInsert without modifying DatabaseModels)
+// Local insert struct with delivery_fee, total, and customer_id for RLS
 private struct FullOrderInsert: Codable, Sendable {
+    let customerId: String?
     let restaurantId: Int
     let status: String
     let itemsTotal: Double
@@ -37,6 +38,7 @@ private struct FullOrderInsert: Codable, Sendable {
     let phone: String?
 
     enum CodingKeys: String, CodingKey {
+        case customerId = "customer_id"
         case restaurantId = "restaurant_id"
         case status
         case itemsTotal = "items_total"
@@ -163,14 +165,33 @@ class OrderStore: ObservableObject {
     ) async -> Bool {
         print("=== REBU PLACE ORDER START ===")
 
+        // Get authenticated user ID for RLS (customer_id must match auth.uid())
+        var userId: String?
+        do {
+            let session = try await supabaseClient.auth.session
+            userId = session.user.id.uuidString
+            print("REBU AUTH: user id = \(userId ?? "nil")")
+        } catch {
+            print("REBU AUTH: No active session, trying anonymous sign-in...")
+            do {
+                let session = try await supabaseClient.auth.signInAnonymously()
+                userId = session.user.id.uuidString
+                print("REBU AUTH: anonymous user id = \(userId ?? "nil")")
+            } catch {
+                print("REBU AUTH ERROR: \(error)")
+                print("REBU AUTH: Proceeding without user id")
+            }
+        }
+
         // Calculate items_total from cart
         let itemsTotal = items.reduce(0.0) { $0 + $1.price * Double($1.quantity) }
         let deliveryFee = DeliveryPricing.deliveryFee(distanceMiles: distanceMiles)
         let total = itemsTotal + deliveryFee
         print("REBU: restaurant=\(restaurantId), items_total=\(itemsTotal), delivery_fee=\(deliveryFee), total=\(total), items=\(items.count)")
 
-        // Build the insert payload
+        // Build the insert payload (customer_id required for RLS)
         let orderInsert = FullOrderInsert(
+            customerId: userId,
             restaurantId: restaurantId,
             status: OrderStatus.new.rawValue,
             itemsTotal: itemsTotal,
