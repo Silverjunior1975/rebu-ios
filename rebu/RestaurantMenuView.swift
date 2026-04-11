@@ -22,7 +22,6 @@ struct RestaurantMenuView: View {
     @State private var showOrderConfirmation: Bool = false
     @State private var isLoading: Bool = true
     @State private var paymentError: String?
-    @State private var noDriversAvailable: Bool = false
     @StateObject private var paymentManager = PaymentManager()
 
     // Editable delivery info (initialized from passed-in values, editable by user)
@@ -163,15 +162,6 @@ struct RestaurantMenuView: View {
                     }
                     .padding(.vertical, 4)
 
-                    if noDriversAvailable {
-                        Text("No drivers available right now")
-                            .font(.subheadline)
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(10)
-                    }
 
                     if let error = paymentError {
                         Text(error)
@@ -227,7 +217,6 @@ struct RestaurantMenuView: View {
         }
         .task {
             await fetchMenuItems()
-            await checkDriverAvailability()
         }
         .alert("Order Placed!", isPresented: $showOrderConfirmation) {
             Button("OK", role: .cancel) {
@@ -245,7 +234,7 @@ struct RestaurantMenuView: View {
     // MARK: - Validation
 
     private var canPlaceOrder: Bool {
-        !isPlacingOrder && !noDriversAvailable &&
+        !isPlacingOrder &&
         !editableName.trimmingCharacters(in: .whitespaces).isEmpty &&
         !editableAddress.trimmingCharacters(in: .whitespaces).isEmpty &&
         !editablePhone.trimmingCharacters(in: .whitespaces).isEmpty
@@ -296,36 +285,12 @@ struct RestaurantMenuView: View {
         }
     }
 
-    // MARK: - Check Driver Availability
-
-    private func checkDriverAvailability() async {
-        do {
-            let drivers: [DriverRow] = try await supabaseClient
-                .from("drivers")
-                .select()
-                .eq("is_online", value: true)
-                .execute()
-                .value
-            noDriversAvailable = drivers.isEmpty
-        } catch {
-            // If drivers table doesn't exist yet, allow order (graceful degradation)
-            print("Driver availability check skipped: \(error)")
-            noDriversAvailable = false
-        }
-    }
 
     // MARK: - Place Order (with Stripe payment)
 
     private func placeOrder() async {
         isPlacingOrder = true
         paymentError = nil
-
-        // Re-check driver availability right before placing
-        await checkDriverAvailability()
-        if noDriversAvailable {
-            isPlacingOrder = false
-            return
-        }
 
         let finalName = editableName.trimmingCharacters(in: .whitespaces)
         let finalAddress = editableAddress.trimmingCharacters(in: .whitespaces)

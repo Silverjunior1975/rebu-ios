@@ -47,7 +47,7 @@ struct RestaurantView: View {
 
 
 
-                        Text("Items Total: $\(String(format: "%.2f", order.items.reduce(0) { $0 + Double($1.quantity) * $1.price }))")
+                        Text("Items Total: $\(String(format: "%.2f", order.total))")
 
                             .bold()
 

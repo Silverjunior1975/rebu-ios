@@ -290,7 +290,7 @@ class OrderStore: ObservableObject {
                 .from("orders")
                 .update(DriverAcceptUpdate(
                     driverId: driverID,
-                    status: OrderStatus.acceptedByDriver.rawValue
+                    status: OrderStatus.pending.rawValue
                 ))
                 .eq("id", value: orderID)
                 .execute()

@@ -10,7 +10,7 @@ enum OrderStatus: String {
 
     case ready = "ready"
 
-    case acceptedByDriver = "accepted_by_driver"
+    case pending = "pending"
 
     case pickedUp = "picked_up"
 

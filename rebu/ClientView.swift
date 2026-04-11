@@ -357,7 +357,7 @@ struct ClientView: View {
                     OrderStatus.new.rawValue,
                     OrderStatus.accepted.rawValue,
                     OrderStatus.ready.rawValue,
-                    OrderStatus.acceptedByDriver.rawValue,
+                    OrderStatus.pending.rawValue,
                     OrderStatus.pickedUp.rawValue
                 ])
                 .order("id", ascending: false)
@@ -451,7 +451,7 @@ struct ClientView: View {
         case .new: return "clock.fill"
         case .accepted: return "checkmark.circle.fill"
         case .ready: return "bag.fill"
-        case .acceptedByDriver: return "car.fill"
+        case .pending: return "car.fill"
         case .pickedUp: return "bicycle"
         case .delivered: return "house.fill"
         }
@@ -462,7 +462,7 @@ struct ClientView: View {
         case .new: return .orange
         case .accepted: return .green
         case .ready: return .blue
-        case .acceptedByDriver: return .purple
+        case .pending: return .purple
         case .pickedUp: return .indigo
         case .delivered: return .green
         }
@@ -473,7 +473,7 @@ struct ClientView: View {
         case .new: return "Order Placed"
         case .accepted: return "Restaurant Accepted"
         case .ready: return "Order Ready"
-        case .acceptedByDriver: return "Driver On The Way"
+        case .pending: return "Driver On The Way"
         case .pickedUp: return "Out for Delivery"
         case .delivered: return "Delivered!"
         }
@@ -484,7 +484,7 @@ struct ClientView: View {
         case .new: return "Waiting for the restaurant to accept your order."
         case .accepted: return "The restaurant accepted and is preparing your order."
         case .ready: return "Your order is ready! Waiting for a driver."
-        case .acceptedByDriver: return "A driver is heading to the restaurant to pick up your order."
+        case .pending: return "A driver is heading to the restaurant to pick up your order."
         case .pickedUp: return "Your order is on its way to you!"
         case .delivered: return "Your order has been delivered. Enjoy!"
         }
