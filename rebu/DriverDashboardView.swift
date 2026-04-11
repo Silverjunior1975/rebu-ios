@@ -35,7 +35,7 @@ struct DriverDashboardView: View {
     /// Active order for THIS driver only (enforces one active order per driver)
     private var activeOrder: Order? {
         orderStore.orders.first {
-            ($0.status == .acceptedByDriver || $0.status == .pickedUp) &&
+            ($0.status == .pending || $0.status == .pickedUp) &&
             $0.driverId == driverId
         }
     }
@@ -411,7 +411,7 @@ struct DriverDashboardView: View {
             }
 
             // Action buttons
-            if order.status == .acceptedByDriver {
+            if order.status == .pending {
                 Text("Head to restaurant for pickup")
                     .font(.caption)
                     .foregroundColor(.secondary)

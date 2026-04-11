@@ -19,7 +19,7 @@ struct DriverView: View {
 
         orderStore.orders.first {
 
-            $0.status == .acceptedByDriver || $0.status == .pickedUp
+            $0.status == .pending || $0.status == .pickedUp
 
         }
 
@@ -71,7 +71,7 @@ struct DriverView: View {
 
                 // ---- PICKED UP ----
 
-                if order.status == .acceptedByDriver {
+                if order.status == .pending {
 
                     Button("Picked Up") {
                         Task {
@@ -175,7 +175,7 @@ struct DriverView: View {
                         Task {
                             await orderStore.updateStatus(
                                 for: order.id,
-                                to: .acceptedByDriver
+                                to: .pending
                             )
                         }
                     }
